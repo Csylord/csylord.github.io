@@ -1,0 +1,1852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="Bloom"/>
+  <meta name="theme-color" content="#faf7ff"/>
+  <title>Bloom — Period Tracker</title>
+  <link rel="manifest" href="#" id="manifest-placeholder"/>
+  <style>
+    html,body,#root{margin:0;padding:0;min-height:100%;-webkit-font-smoothing:antialiased;}
+    body{overscroll-behavior:none;}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- React + Babel from CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel" data-presets="react">
+const { useState, useEffect, useCallback, useRef } = React;
+
+// ══════════════════════════════════════════════════════════
+//  DATE UTILITIES
+// ══════════════════════════════════════════════════════════
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+};
+const p2 = n => String(n).padStart(2,"0");
+const parseDate = s => new Date(s+"T00:00:00");
+const addDays = (s,n) => { const d=parseDate(s); d.setDate(d.getDate()+n); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`; };
+const diffDays = (a,b) => Math.round((parseDate(b)-parseDate(a))/86400000);
+const fmtShort = s => { if(!s)return""; const d=parseDate(s); return d.toLocaleDateString("en-US",{month:"short",day:"numeric"}); };
+const fmtFull  = s => { if(!s)return""; const d=parseDate(s); return d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}); };
+const isoDate  = (y,m,d) => `${y}-${p2(m+1)}-${p2(d)}`;
+const daysInMonth = (y,m) => new Date(y,m+1,0).getDate();
+const firstDOW = (y,m) => new Date(y,m,1).getDay();
+const std = arr => { if(arr.length<2)return 0; const m=arr.reduce((a,b)=>a+b,0)/arr.length; return Math.sqrt(arr.map(x=>(x-m)**2).reduce((a,b)=>a+b,0)/arr.length); };
+
+// ══════════════════════════════════════════════════════════
+//  ADVANCED PREDICTION ENGINE
+// ══════════════════════════════════════════════════════════
+function buildPredictions(periods, settings) {
+  const sorted = [...periods].sort((a,b)=>a.start.localeCompare(b.start));
+  if(!sorted.length) return null;
+  const last = sorted[sorted.length-1];
+
+  // Compute cycle gaps
+  const gaps = [];
+  for(let i=1;i<sorted.length;i++) gaps.push(diffDays(sorted[i-1].start, sorted[i].start));
+
+  // Weighted average (recent cycles weigh more)
+  let avgCycle = settings.cycleLength;
+  if(gaps.length>=1){
+    const weights = gaps.map((_,i)=> i+1);
+    const wSum = weights.reduce((a,b)=>a+b,0);
+    avgCycle = Math.round(gaps.reduce((s,g,i)=>s+g*weights[i],0)/wSum);
+  }
+
+  const avgPeriod = (() => {
+    const lens = sorted.map(p=>diffDays(p.start,p.end)+1).filter(l=>l>0&&l<15);
+    return lens.length ? Math.round(lens.reduce((a,b)=>a+b,0)/lens.length) : settings.periodLength;
+  })();
+
+  const cycleStd = std(gaps);
+  const regularity = gaps.length>=2 ? Math.max(0, Math.round(100 - cycleStd*8)) : null;
+
+  // Next period prediction with confidence
+  const nextStart = addDays(last.start, avgCycle);
+  const nextEnd   = addDays(nextStart, avgPeriod-1);
+  const confidence = gaps.length>=3 ? (cycleStd<3 ? "high" : cycleStd<6 ? "medium" : "low") : "low";
+
+  // Fertile / ovulation window relative to *next* period
+  const ovulation   = addDays(nextStart,-14);
+  const fertileStart= addDays(ovulation,-5);
+  const fertileEnd  = addDays(ovulation,1);
+  const pmsStart    = addDays(nextStart,-7);
+
+  // Current cycle position
+  const today = todayStr();
+  const cycleDay  = diffDays(last.start,today)+1;
+  const daysLeft  = diffDays(today,nextStart);
+  const isLate    = cycleDay > avgCycle + Math.max(3,cycleStd);
+
+  // Phase
+  const phase =
+    cycleDay>=1&&cycleDay<=avgPeriod ? "menstrual" :
+    today>=fertileStart&&today<=fertileEnd ? "fertile" :
+    today===ovulation ? "ovulation" :
+    today>=pmsStart&&today<nextStart ? "pms" :
+    cycleDay<=avgCycle/2 ? "follicular" : "luteal";
+
+  // Fertility score 0-100 for each day of the upcoming cycle
+  const fertilityMap = {};
+  for(let i=-5;i<=1;i++){
+    const d=addDays(ovulation,i);
+    const score = i===-1||i===0 ? 95 : i===-2||i===1 ? 75 : i===-3 ? 50 : i===-4 ? 30 : 15;
+    fertilityMap[d]=score;
+  }
+
+  return {
+    avgCycle, avgPeriod, cycleStd, regularity, confidence,
+    nextStart, nextEnd, ovulation, fertileStart, fertileEnd, pmsStart,
+    cycleDay, daysLeft, isLate, phase,
+    lastStart: last.start, fertilityMap,
+    totalCycles: sorted.length,
+    gaps,
+  };
+}
+
+// ══════════════════════════════════════════════════════════
+//  HEALTH INTELLIGENCE ENGINE
+// ══════════════════════════════════════════════════════════
+// ── Contraception profiles ────────────────────────────────────────────────────
+const CONTRA_PROFILES = {
+  None:{
+    suppressesOvulation:false, mayStopPeriods:false, mayLightenPeriods:false,
+    mayIrregulate:false, hormonal:false,
+    note:null,
+  },
+  Pill:{
+    suppressesOvulation:true, mayStopPeriods:false, mayLightenPeriods:true,
+    mayIrregulate:false, hormonal:true,
+    note:"The combined pill suppresses ovulation. Fertility predictions and ovulation tracking are not applicable while you're on the pill. Withdrawal bleeds are not true periods.",
+    cycleAlert:"Pill users experience a withdrawal bleed rather than a true period — cycle length will appear artificially regular.",
+    lateNote:"A missed withdrawal bleed on the pill should always be discussed with your doctor or pharmacist.",
+  },
+  IUD:{
+    suppressesOvulation:false, mayStopPeriods:true, mayLightenPeriods:true,
+    mayIrregulate:true, hormonal:true, // hormonal IUD
+    note:"Hormonal IUDs (e.g. Mirena) can lighten or stop periods entirely — this is normal. Copper IUDs are non-hormonal and may make periods heavier.",
+    cycleAlert:"Irregular or absent periods are common in the first 3–6 months of IUD use.",
+    lateNote:"Absent periods with a hormonal IUD are usually normal, but a pregnancy test is advisable if you have concerns.",
+  },
+  Implant:{
+    suppressesOvulation:true, mayStopPeriods:true, mayLightenPeriods:true,
+    mayIrregulate:true, hormonal:true,
+    note:"The implant suppresses ovulation and often stops periods. Irregular spotting is common, especially in the first year.",
+    cycleAlert:"Unpredictable bleeding and long gaps between periods are expected with the implant.",
+    lateNote:"Missed periods on the implant are expected and usually not a cause for concern.",
+  },
+  Patch:{
+    suppressesOvulation:true, mayStopPeriods:false, mayLightenPeriods:true,
+    mayIrregulate:false, hormonal:true,
+    note:"The patch works like the combined pill — it suppresses ovulation. Ovulation and fertility tracking are not applicable.",
+    cycleAlert:"Withdrawal bleeds on the patch are lighter and more regular than natural periods.",
+    lateNote:"A missed bleed on the patch should be discussed with your doctor.",
+  },
+  Condoms:{
+    suppressesOvulation:false, mayStopPeriods:false, mayLightenPeriods:false,
+    mayIrregulate:false, hormonal:false,
+    note:"Condoms are non-hormonal and don't affect your cycle. All predictions and tracking apply normally.",
+  },
+  Other:{
+    suppressesOvulation:false, mayStopPeriods:false, mayLightenPeriods:false,
+    mayIrregulate:true, hormonal:false,
+    note:"Some contraceptive methods may affect your cycle. Check with your doctor about how your method may impact predictions.",
+  },
+};
+
+function analyzeHealth(periods, logs, pred, settings) {
+  const alerts = [];
+  const insights = [];
+  const sorted = [...periods].sort((a,b)=>a.start.localeCompare(b.start));
+  const gaps = pred?.gaps || [];
+  const today = todayStr();
+  const contra = settings.contraception || "None";
+  const cp = CONTRA_PROFILES[contra] || CONTRA_PROFILES.None;
+
+  // ── Contraception context card (always shown if hormonal) ─────────────────
+  if(cp.note){
+    insights.push({
+      id:"contra_note",
+      title:`${contra} — What to Expect`,
+      body:cp.note,
+      icon:"💊",
+      level:"info",
+    });
+  }
+
+  // ── Period timing anomalies (adjusted for contraception) ─────────────────
+  if(pred?.isLate){
+    const daysLate = pred.cycleDay - pred.avgCycle;
+    if(cp.mayStopPeriods || cp.suppressesOvulation){
+      // Softer alert for hormonal methods that routinely skip periods
+      insights.push({
+        id:"late",
+        title:"Missed Period",
+        body:cp.lateNote || `You haven't had a period in ${pred.cycleDay} days. With your contraceptive method this can be normal, but if you have any concerns take a pregnancy test or speak with your doctor.`,
+        icon:"·",
+      });
+    } else {
+      alerts.push({
+        id:"late", level:"warning",
+        title:`Period is ${daysLate} Day${daysLate>1?"s":""} Late`,
+        body:`Your period is overdue based on your average cycle. Stress, illness, weight changes, or travel can cause delays. If it has been over 7 days, consider a pregnancy test or speak with your doctor.`,
+        icon:"·",
+      });
+    }
+  }
+
+  // ── Cycle regularity (skip for methods that cause natural irregularity) ───
+  if(gaps.length>=3 && !cp.mayIrregulate){
+    const last3 = gaps.slice(-3);
+    const allShort = last3.every(g=>g<21);
+    const allLong  = last3.every(g=>g>35);
+    const highVar  = pred.cycleStd > 7;
+
+    if(allShort) alerts.push({
+      id:"shortcycles", level:"warning",
+      title:"Consistently Short Cycles",
+      body:"Your last 3 cycles were under 21 days. Short cycles can be linked to thyroid issues, low ovarian reserve, or hormonal imbalances. Worth mentioning to your doctor.",
+      icon:"·",
+    });
+    if(allLong) alerts.push({
+      id:"longcycles", level:"warning",
+      title:"Consistently Long Cycles",
+      body:`Your last 3 cycles exceeded 35 days. This may indicate PCOS, thyroid conditions, or elevated stress hormones. A doctor can help identify the cause.`,
+      icon:"·",
+    });
+    if(highVar && !allShort && !allLong) alerts.push({
+      id:"irregular", level:"info",
+      title:"Irregular Cycle Pattern",
+      body:`Your cycle varies by ±${Math.round(pred.cycleStd)} days. Some variation is normal. Keep logging to build a clearer picture.`,
+      icon:"·",
+    });
+  } else if(gaps.length>=3 && cp.mayIrregulate && cp.cycleAlert){
+    insights.push({
+      id:"contra_irregular",
+      title:"Irregular Cycles Expected",
+      body:cp.cycleAlert,
+      icon:"·",
+    });
+  }
+
+  // ── Ovulation / fertility suppression notice ──────────────────────────────
+  if(cp.suppressesOvulation){
+    insights.push({
+      id:"no_ovulation",
+      title:"Fertility Tracking Paused",
+      body:`Because your contraceptive method suppresses ovulation, ovulation dates and fertility window predictions are not shown. If you stop using ${contra}, full tracking will resume automatically.`,
+      icon:"·",
+    });
+  }
+
+  // ── Symptom-based insights ───────────────────────────────────────────────
+  const allLogs = Object.entries(logs);
+  const recentLogs = allLogs.filter(([d])=>diffDays(d,today)<=60&&diffDays(d,today)>=0);
+
+  const symptomFreq = {};
+  recentLogs.forEach(([,l])=>(l.symptoms||[]).forEach(s=>symptomFreq[s]=(symptomFreq[s]||0)+1));
+
+  if((symptomFreq.cramps||0)>=8) alerts.push({
+    id:"heavycramps", level:"info",
+    title:"Frequent Cramping",
+    body:cp.hormonal
+      ? "You've logged cramps frequently. While hormonal contraception can reduce cramping, persistent pain should be evaluated — it may indicate endometriosis, fibroids, or adenomyosis."
+      : "You've logged cramps on 8+ days in the last 60 days. Persistent cramping could indicate endometriosis, fibroids, or adenomyosis. Consider speaking with a gynaecologist.",
+    icon:"·",
+  });
+
+  if((symptomFreq.headache||0)>=10) insights.push({
+    id:"headaches",
+    title:"Frequent Headaches",
+    body:cp.hormonal
+      ? `Hormonal contraception (especially the ${contra}) can trigger headaches in some people due to oestrogen fluctuations. If headaches are new or worsening, discuss with your doctor.`
+      : "Hormonal headaches often occur just before or during your period due to oestrogen drops. Tracking their timing can help identify the pattern.",
+    icon:"·",
+  });
+
+  if((symptomFreq.nausea||0)>=6 && cp.hormonal) insights.push({
+    id:"nausea_hormonal",
+    title:"Nausea & Hormonal Contraception",
+    body:`Nausea is a known side effect of hormonal methods like the ${contra}, especially in the first few months. Taking it with food may help. If it persists, speak with your doctor about alternatives.`,
+    icon:"·",
+  });
+
+  // ── Heavy flow (context-aware) ────────────────────────────────────────────
+  const heavyFlowDays = recentLogs.filter(([,l])=>l.flow==="heavy"||l.flow==="very_heavy").length;
+  if(heavyFlowDays>=5){
+    if(contra==="IUD"){
+      alerts.push({
+        id:"heavyflow", level:"warning",
+        title:"Heavy Flow with IUD",
+        body:"Heavy periods are common with the copper IUD, especially in the first 3–6 months. If soaking through protection hourly, consult your doctor — they may recommend iron monitoring or further evaluation.",
+        icon:"·",
+      });
+    } else if(cp.hormonal){
+      alerts.push({
+        id:"heavyflow", level:"warning",
+        title:"Heavy Flow Despite Hormonal Contraception",
+        body:`Hormonal methods like the ${contra} typically lighten periods. Unexpectedly heavy flow may warrant a review of your contraceptive or a check for underlying causes such as fibroids.`,
+        icon:"·",
+      });
+    } else {
+      alerts.push({
+        id:"heavyflow", level:"warning",
+        title:"Frequently Heavy Flow",
+        body:"Consistently heavy periods can cause anaemia and may signal fibroids, polyps, or a clotting disorder. Please discuss with your doctor.",
+        icon:"·",
+      });
+    }
+  }
+
+  // ── Mood patterns ─────────────────────────────────────────────────────────
+  const moodFreq = {};
+  recentLogs.forEach(([,l])=>(l.mood||[]).forEach(m=>moodFreq[m]=(moodFreq[m]||0)+1));
+  const lowMoodTotal=(moodFreq.anxious||0)+(moodFreq.irritable||0)+(moodFreq.sad||0)+(moodFreq.depressed||0);
+  if(lowMoodTotal>=12){
+    insights.push({
+      id:"pmdd",
+      title:"Low Mood Pattern Detected",
+      body:cp.hormonal
+        ? `Hormonal contraception can affect mood in some people. You've logged anxiety, irritability, or low mood frequently — this may be related to the ${contra}. Speak with your doctor about alternatives if this is affecting your quality of life.`
+        : "You've logged anxiety, irritability, or sadness frequently. If these moods cluster in the 1–2 weeks before your period, it may be PMDD — a recognised condition that responds well to treatment.",
+      icon:"·",
+    });
+  }
+
+  // ── BBT insights (only meaningful if not suppressing ovulation) ───────────
+  const temps = recentLogs.map(([,l])=>parseFloat(l.temp)).filter(t=>t>35&&t<40);
+  if(temps.length>=5){
+    const avgTemp = temps.reduce((a,b)=>a+b,0)/temps.length;
+    if(!cp.suppressesOvulation && avgTemp<36.1){
+      insights.push({
+        id:"lowtemp", title:"Low Basal Temperature",
+        body:`Your average BBT is ${avgTemp.toFixed(2)}°C. A consistently low BBT can sometimes indicate hypothyroidism. Your temperature should rise ~0.2–0.5°C after ovulation.`,
+        icon:"·",
+      });
+    } else if(cp.suppressesOvulation){
+      insights.push({
+        id:"bbt_suppressed", title:"BBT Tracking Note",
+        body:`Because the ${contra} suppresses ovulation, you won't see the typical mid-cycle BBT rise. Temperature tracking is still useful for spotting illness or thyroid issues.`,
+        icon:"·",
+      });
+    }
+  }
+
+  // ── Inter-period spotting ─────────────────────────────────────────────────
+  if(sorted.length>=1){
+    const interSpotting = allLogs.filter(([d,l])=>{
+      const inPeriod = sorted.some(p=>d>=p.start&&d<=p.end);
+      return !inPeriod&&(l.flow==="spotting"||l.flow==="light");
+    });
+    if(interSpotting.length>=3){
+      if(cp.mayIrregulate){
+        insights.push({
+          id:"spotting",
+          title:"Spotting Between Periods",
+          body:`Irregular spotting is common with the ${contra}, especially in the first year. If spotting is heavy, painful, or accompanied by unusual discharge, consult your doctor.`,
+          icon:"·",
+        });
+      } else {
+        alerts.push({
+          id:"spotting", level:"warning",
+          title:"Spotting Between Periods",
+          body:"You've logged spotting or light flow outside your period multiple times. This could be ovulation spotting (normal) or may indicate cervical irritation, polyps, or hormonal shifts. Worth a check-up if it continues.",
+          icon:"·",
+        });
+      }
+    }
+  }
+
+  // ── Positive insights ─────────────────────────────────────────────────────
+  if(pred?.regularity>=85 && !cp.mayIrregulate) insights.push({
+    id:"regular",
+    title:"Very Regular Cycle",
+    body:`Your cycle is highly regular (±${Math.round(pred.cycleStd)} days variation). This is a great sign of hormonal balance.`,
+    icon:"·",
+  });
+
+  const nonContraInsights = insights.filter(i=>i.id!=="contra_note"&&i.id!=="contra_irregular"&&i.id!=="no_ovulation");
+  if(sorted.length>=4 && alerts.length===0 && nonContraInsights.length<=1){
+    insights.push({
+      id:"healthy",
+      title:"No Concerns Detected",
+      body:"Based on your logged data, no major anomalies have been detected. Keep logging for more personalised insights over time.",
+      icon:"·",
+    });
+  }
+
+  return { alerts, insights };
+}
+
+// ══════════════════════════════════════════════════════════
+//  CONSTANTS
+// ══════════════════════════════════════════════════════════
+const SYMPTOMS = [
+  {id:"cramps",label:"Cramps",emoji:"😣"},{id:"headache",label:"Headache",emoji:"🤕"},
+  {id:"bloating",label:"Bloating",emoji:"🫧"},{id:"backpain",label:"Back Pain",emoji:"😬"},
+  {id:"acne",label:"Acne",emoji:"😤"},{id:"fatigue",label:"Fatigue",emoji:"😴"},
+  {id:"nausea",label:"Nausea",emoji:"🤢"},{id:"tender",label:"Tender Breasts",emoji:"💗"},
+  {id:"dizziness",label:"Dizziness",emoji:"😵"},{id:"insomnia",label:"Insomnia",emoji:"🌙"},
+  {id:"hotflash",label:"Hot Flashes",emoji:"🔥"},{id:"cravings",label:"Cravings",emoji:"🍫"},
+];
+const MOODS = [
+  {id:"happy",label:"Happy",emoji:"😊"},{id:"sad",label:"Sad",emoji:"😢"},
+  {id:"anxious",label:"Anxious",emoji:"😰"},{id:"irritable",label:"Irritable",emoji:"😤"},
+  {id:"calm",label:"Calm",emoji:"😌"},{id:"energetic",label:"Energetic",emoji:"⚡"},
+  {id:"romantic",label:"Romantic",emoji:"🥰"},{id:"sensitive",label:"Sensitive",emoji:"🥺"},
+  {id:"depressed",label:"Low",emoji:"😔"},{id:"confident",label:"Confident",emoji:"💪"},
+  {id:"focused",label:"Focused",emoji:"🎯"},{id:"social",label:"Social",emoji:"🗣️"},
+];
+const FLOWS = [
+  {id:"spotting",label:"Spotting",color:"#fda4af"},{id:"light",label:"Light",color:"#f472b6"},
+  {id:"medium",label:"Medium",color:"#ec4899"},{id:"heavy",label:"Heavy",color:"#be185d"},
+  {id:"very_heavy",label:"Very Heavy",color:"#881337"},
+];
+const DISCHARGE = ["None","Dry","Sticky","Creamy","Watery","Egg White","Unusual"];
+const SEX = ["Protected","Unprotected","None"];
+
+
+// ══════════════════════════════════════════════════════════
+//  PHASE DATA
+// ══════════════════════════════════════════════════════════
+const PHASE_DATA = {
+  menstrual:{ name:"Menstrual",color:"#f472b6",bg:"#fff0f6",glow:"rgba(244,114,182,.15)",
+    desc:"Your uterine lining sheds. Oestrogen and progesterone are at their lowest.",
+    tips:["Heat pad for cramps","Ibuprofen with food","Iron-rich foods help","Stay hydrated"],
+    energy:"Low",libido:"Low–Medium",skin:"May break out"},
+  follicular:{ name:"Follicular",color:"#a78bfa",bg:"#f5f3ff",glow:"rgba(167,139,250,.15)",
+    desc:"Oestrogen rises as follicles mature. You feel more energetic and sociable.",
+    tips:["Great time for intense workouts","Tackle creative projects","Lighter meals feel good","Mood will lift"],
+    energy:"Rising",libido:"Increasing",skin:"Glowing"},
+  fertile:{ name:"Fertile Window",color:"#10b981",bg:"#f0fdf8",glow:"rgba(16,185,129,.15)",
+    desc:"Your most fertile days. Oestrogen peaks and your body is ready for ovulation.",
+    tips:["High chance of conception","Peak physical performance","Great for social plans","Sharp focus and memory"],
+    energy:"High",libido:"High",skin:"Clear and glowing"},
+  ovulation:{ name:"Ovulation",color:"#059669",bg:"#ecfdf5",glow:"rgba(5,150,105,.15)",
+    desc:"An egg is released. You may feel a surge of confidence and sex drive today.",
+    tips:["Note any BBT spike","You may feel a brief twinge","Peak fertility today","High energy and confidence"],
+    energy:"Peak",libido:"Peak",skin:"Best it will look"},
+  pms:{ name:"PMS Phase",color:"#fb923c",bg:"#fff8f2",glow:"rgba(251,146,60,.15)",
+    desc:"Progesterone drops as your period approaches. Mood and physical symptoms may appear.",
+    tips:["Magnesium-rich foods help","Gentle yoga over intense exercise","Reduce caffeine and alcohol","Communicate your needs"],
+    energy:"Declining",libido:"Low",skin:"May bloat or break out"},
+  luteal:{ name:"Luteal Phase",color:"#7c3aed",bg:"#faf5ff",glow:"rgba(124,58,237,.12)",
+    desc:"Progesterone is high. You may feel calmer but tired.",
+    tips:["Prioritise sleep","Snack on nuts and seeds","Moderate exercise is ideal","Good time for reflection"],
+    energy:"Medium",libido:"Medium",skin:"May get oilier"},
+};
+
+// ══════════════════════════════════════════════════════════
+//  CONSTANTS
+// ══════════════════════════════════════════════════════════
+const SYMPTOMS=[
+  {id:"cramps",label:"Cramps"},{id:"headache",label:"Headache"},
+  {id:"bloating",label:"Bloating"},{id:"backpain",label:"Back Pain"},
+  {id:"acne",label:"Acne"},{id:"fatigue",label:"Fatigue"},
+  {id:"nausea",label:"Nausea"},{id:"tender",label:"Tender Breasts"},
+  {id:"dizziness",label:"Dizziness"},{id:"insomnia",label:"Insomnia"},
+  {id:"hotflash",label:"Hot Flashes"},{id:"cravings",label:"Cravings"},
+];
+const MOODS=[
+  {id:"happy",label:"Happy"},{id:"sad",label:"Sad"},
+  {id:"anxious",label:"Anxious"},{id:"irritable",label:"Irritable"},
+  {id:"calm",label:"Calm"},{id:"energetic",label:"Energetic"},
+  {id:"romantic",label:"Romantic"},{id:"sensitive",label:"Sensitive"},
+  {id:"depressed",label:"Low"},{id:"confident",label:"Confident"},
+  {id:"focused",label:"Focused"},{id:"social",label:"Social"},
+];
+const FLOWS=[
+  {id:"spotting",label:"Spotting",color:"#fda4af"},
+  {id:"light",label:"Light",color:"#f472b6"},
+  {id:"medium",label:"Medium",color:"#ec4899"},
+  {id:"heavy",label:"Heavy",color:"#be185d"},
+  {id:"very_heavy",label:"Very Heavy",color:"#881337"},
+];
+const DISCHARGE=["None","Dry","Sticky","Creamy","Watery","Egg White","Unusual"];
+const SEX=["Protected","Unprotected","None"];
+
+// ══════════════════════════════════════════════════════════
+//  SVG ICON SYSTEM
+// ══════════════════════════════════════════════════════════
+const ICONS={
+  home:"M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z|M9 22V12h6v10",
+  calendar:"M8 2v4|M16 2v4|M3 10h18|M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z",
+  pen:"M12 20h9|M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z",
+  chart:"M18 20V10|M12 20V4|M6 20v-6",
+  activity:"M22 12h-4l-3 9L9 3l-3 9H2",
+  gear:"M12 15a3 3 0 100-6 3 3 0 000 6z|M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z",
+  download:"M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4|M7 10l5 5 5-5|M12 15V3",
+  trash:"M3 6h18|M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6|M10 11v6|M14 11v6|M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2",
+  check:"M20 6L9 17l-5-5",
+  close:"M18 6L6 18|M6 6l12 12",
+  chevL:"M15 18l-6-6 6-6",
+  chevR:"M9 18l6-6-6-6",
+  moon:"M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z",
+  sun:"M12 2v2|M12 20v2|M4.93 4.93l1.41 1.41|M17.66 17.66l1.41 1.41|M2 12h2|M20 12h2|M4.93 19.07l1.41-1.41|M17.66 6.34l1.41-1.41|M12 17a5 5 0 100-10 5 5 0 000 10z",
+  drop:"M12 2.69l5.66 5.66a8 8 0 11-11.31 0z",
+  refresh:"M23 4v6h-6|M1 20v-6h6|M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15",
+  alert:"M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z|M12 9v4|M12 17h.01",
+  user:"M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2|M12 11a4 4 0 100-8 4 4 0 000 8z",
+  save:"M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z|M17 21v-8H7v8|M7 3v5h8",
+  info:"M12 22a10 10 0 100-20 10 10 0 000 20z|M12 8h.01|M12 12v4",
+  heart:"M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z",
+  pill:"M10.5 4.5a6 6 0 018.49 8.49l-9 9a6 6 0 01-8.49-8.49l9-9z|M12 12L6.5 17.5",
+};
+
+function Icon({name,size=20,color="currentColor",strokeWidth=1.75,style={}}){
+  const paths=(ICONS[name]||"M0 0").split("|");
+  return(
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
+      style={style}>
+      {paths.map((d,i)=><path key={i} d={d}/>)}
+    </svg>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+//  STORAGE & DEFAULTS
+// ══════════════════════════════════════════════════════════
+const DEFAULTS={cycleLength:28,periodLength:5,name:"",contraception:"None",darkMode:false};
+const load=(k,fb)=>{try{const r=localStorage.getItem("bloom2_"+k);return r?JSON.parse(r):fb;}catch{return fb;}};
+const save=(k,v)=>{try{localStorage.setItem("bloom2_"+k,JSON.stringify(v));}catch{}};
+
+// ══════════════════════════════════════════════════════════
+//  CSS VARIABLE INJECTION (theme engine)
+// ══════════════════════════════════════════════════════════
+const LIGHT={
+  "--bg":"linear-gradient(160deg,#fff8fb 0%,#faf7ff 50%,#f5f0ff 100%)",
+  "--card":"#ffffff","--surface":"#faf7ff","--border":"#f0ebff",
+  "--text":"#1e1235","--text-mid":"#6b5c8a","--text-soft":"#9f92b8",
+  "--shadow":"rgba(167,139,250,.08)","--shadow-md":"rgba(167,139,250,.14)",
+  "--nav":"rgba(255,255,255,.94)","--header":"rgba(255,255,255,.90)",
+  "--input":"#faf7ff","--chip":"#faf7ff","--chip-on":"#ede9fe",
+  "--chip-on-text":"#7c3aed","--chip-on-border":"#ddd6fe",
+};
+const DARK={
+  "--bg":"#0e0920",
+  "--card":"#1a1130","--surface":"#130c24","--border":"#2a1d45",
+  "--text":"#f0e8ff","--text-mid":"#c4b0e0","--text-soft":"#7a6e96",
+  "--shadow":"rgba(0,0,0,.35)","--shadow-md":"rgba(0,0,0,.5)",
+  "--nav":"rgba(14,9,32,.96)","--header":"rgba(14,9,32,.92)",
+  "--input":"#130c24","--chip":"#1a1130","--chip-on":"#2e1d6e",
+  "--chip-on-text":"#c4b5fd","--chip-on-border":"#4c3899",
+};
+function applyTheme(dark){
+  const vars=dark?DARK:LIGHT;
+  const root=document.documentElement;
+  Object.entries(vars).forEach(([k,v])=>root.style.setProperty(k,v));
+}
+
+// ══════════════════════════════════════════════════════════
+//  ROOT APP
+// ══════════════════════════════════════════════════════════
+export default function App(){
+  const [tab,setTab]=useState("home");
+  const [periods,setPeriods]=useState(()=>load("periods",[]));
+  const [logs,setLogs]=useState(()=>load("logs",{}));
+  const [notes,setNotes]=useState(()=>load("notes",{}));
+  const [settings,setSett]=useState(()=>load("settings",DEFAULTS));
+  const [alertDismissed,setAlertDismissed]=useState(()=>load("dismissed",[]));
+
+  const dark=settings.darkMode||false;
+
+  // Font + global styles
+  useEffect(()=>{
+    if(!document.getElementById("bloom-font")){
+      const l=document.createElement("link");
+      l.id="bloom-font";l.rel="stylesheet";
+      l.href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap";
+      document.head.appendChild(l);
+      const g=document.createElement("style");g.id="bloom-global";
+      g.textContent=[
+        "*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}",
+        "body{margin:0;padding:0;}",
+        "input,textarea,button{font-family:'DM Sans',system-ui,sans-serif;}",
+        "input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:99px;outline:none;cursor:pointer;border:none;padding:0;background:transparent;}",
+        "input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#ec4899;cursor:pointer;box-shadow:0 2px 10px rgba(236,72,153,.35);border:3px solid #fff;}",
+        "input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#ec4899;border:3px solid #fff;}",
+        "input[type=date]::-webkit-calendar-picker-indicator{opacity:.4;cursor:pointer;}",
+        "::-webkit-scrollbar{width:0;height:0;}",
+      ].join("");
+      document.head.appendChild(g);
+    }
+    applyTheme(dark);
+  },[dark]);
+
+  useEffect(()=>save("periods",periods),[periods]);
+  useEffect(()=>save("logs",logs),[logs]);
+  useEffect(()=>save("notes",notes),[notes]);
+  useEffect(()=>save("settings",settings),[settings]);
+  useEffect(()=>save("dismissed",alertDismissed),[alertDismissed]);
+
+  const pred=buildPredictions(periods,settings);
+  const health=analyzeHealth(periods,logs,pred,settings);
+  const activeAlerts=health.alerts.filter(a=>!alertDismissed.includes(a.id));
+  const dismissAlert=id=>setAlertDismissed(p=>[...p,id]);
+  const suppressOvulation=["Pill","Implant","Patch"].includes(settings.contraception);
+
+  const addPeriod=useCallback(start=>{
+    const end=addDays(start,settings.periodLength-1);
+    setPeriods(prev=>{
+      const f=prev.filter(p=>Math.abs(diffDays(p.start,start))>settings.periodLength);
+      return [...f,{start,end,id:Date.now()}].sort((a,b)=>a.start.localeCompare(b.start));
+    });
+  },[settings.periodLength]);
+
+  const removePeriod=useCallback(id=>setPeriods(p=>p.filter(x=>x.id!==id)),[]);
+  const toggleLog=useCallback((date,field,item)=>{
+    setLogs(prev=>{
+      const day={...(prev[date]||{})};
+      const arr=day[field]||[];
+      day[field]=arr.includes(item)?arr.filter(x=>x!==item):[...arr,item];
+      return{...prev,[date]:day};
+    });
+  },[]);
+  const setLog=useCallback((date,field,val)=>{
+    setLogs(prev=>({...prev,[date]:{...(prev[date]||{}),[field]:val}}));
+  },[]);
+
+  const needsOnboard=!settings.name;
+
+  const rootStyle={
+    minHeight:"100vh",
+    background:"var(--bg)",
+    color:"var(--text)",
+    fontFamily:"'DM Sans',system-ui,sans-serif",
+    position:"relative",
+    overflowX:"hidden",
+    transition:"background .3s, color .3s",
+  };
+
+  return(
+    <div style={rootStyle}>
+      <Blobs phase={pred?.phase}/>
+      {needsOnboard
+        ? <Onboard settings={settings} setSett={setSett} setPeriods={setPeriods}/>
+        : <>
+            <Header settings={settings} alerts={activeAlerts} dark={dark}/>
+            <main style={{maxWidth:480,margin:"0 auto",overflowX:"hidden",paddingBottom:84}}>
+              {tab==="home"&&<HomeTab pred={pred} periods={periods} logs={logs} alerts={activeAlerts} onDismiss={dismissAlert} settings={settings} suppressOvulation={suppressOvulation} dark={dark}/>}
+              {tab==="calendar"&&<CalendarTab periods={periods} pred={pred} logs={logs} addPeriod={addPeriod} removePeriod={removePeriod} settings={settings}/>}
+              {tab==="log"&&<LogTab logs={logs} notes={notes} setNotes={setNotes} setLog={setLog} toggleLog={toggleLog} periods={periods} addPeriod={addPeriod} pred={pred} dark={dark}/>}
+              {tab==="insights"&&<InsightsTab periods={periods} logs={logs} pred={pred} health={health} settings={settings}/>}
+              {tab==="health"&&<HealthTab alerts={activeAlerts} insights={health.insights} onDismiss={dismissAlert} settings={settings}/>}
+              {tab==="settings"&&<SettingsTab settings={settings} setSett={setSett} periods={periods} setPeriods={setPeriods} logs={logs} setLogs={setLogs} notes={notes} setNotes={setNotes} setAlertDismissed={setAlertDismissed} dark={dark}/>}
+            </main>
+            <BottomNav tab={tab} setTab={setTab} alerts={activeAlerts} dark={dark}/>
+          </>
+      }
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+//  SHARED PRIMITIVES
+// ══════════════════════════════════════════════════════════
+function Card({children,style={},accent}){
+  return(
+    <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:22,
+      padding:"18px 20px",boxShadow:"0 2px 16px var(--shadow)",overflow:"hidden",
+      ...(accent?{borderTop:`3px solid ${accent}`}:{}),...style}}>
+      {children}
+    </div>
+  );
+}
+function CardHead({children}){
+  return <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:"var(--text-soft)",marginBottom:14}}>{children}</div>;
+}
+function Chip({active,onClick,children,activeColor}){
+  const on=active;
+  const bg=on?(activeColor||"var(--chip-on)"):"var(--chip)";
+  const col=on?"var(--chip-on-text)":"var(--text-mid)";
+  const border=on?"var(--chip-on-border)":"var(--border)";
+  return(
+    <button onClick={onClick}
+      style={{background:bg,border:`1.5px solid ${border}`,color:col,borderRadius:99,
+        padding:"8px 16px",fontSize:13,cursor:"pointer",fontWeight:on?600:500,
+        transition:"all .15s",fontFamily:"inherit"}}>
+      {children}
+    </button>
+  );
+}
+function SelChip({active,onClick,children,activeAccent}){
+  return(
+    <button onClick={onClick}
+      style={{background:active?(activeAccent?activeAccent+"15":"var(--chip-on)"):"var(--surface)",
+        border:`1.5px solid ${active?(activeAccent||"#a78bfa"):"var(--border)"}`,
+        borderRadius:12,padding:"9px 6px",cursor:"pointer",fontSize:13,fontWeight:active?600:500,
+        color:active?(activeAccent||"var(--chip-on-text)"):"var(--text-mid)",
+        textAlign:"center",width:"100%",fontFamily:"inherit",transition:"all .15s"}}>
+      {children}
+    </button>
+  );
+}
+function SliderInput({min,max,value,onChange,color="#ec4899",showValue=false,unit=""}){
+  const pct=Math.round(((value-min)/(max-min))*100);
+  const track=`linear-gradient(to right,${color} 0%,${color} ${pct}%,var(--border) ${pct}%,var(--border) 100%)`;
+  return(
+    <div style={{width:"100%"}}>
+      {showValue&&(
+        <div style={{textAlign:"center",marginBottom:8}}>
+          <span style={{fontSize:28,fontWeight:700,color}}>{value}</span>
+          <span style={{fontSize:13,color:"var(--text-soft)",marginLeft:4}}>{unit}</span>
+        </div>
+      )}
+      <div style={{position:"relative",padding:"10px 0"}}>
+        <input type="range" min={min} max={max} value={value} onChange={onChange}
+          style={{width:"100%",background:track,borderRadius:99}}/>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",marginTop:2}}>
+        <span style={{fontSize:11,color:"var(--text-soft)",fontWeight:500}}>{min}{unit}</span>
+        <span style={{fontSize:11,color:"var(--text-soft)",fontWeight:500}}>{max}{unit}</span>
+      </div>
+    </div>
+  );
+}
+function Tag({children,color,text}){
+  return<span style={{display:"inline-block",borderRadius:99,padding:"4px 12px",fontSize:12,
+    fontWeight:600,margin:"2px 3px",background:color||"var(--chip-on)",color:text||"var(--chip-on-text)"}}>{children}</span>;
+}
+function Muted({children,style={}}){
+  return<p style={{fontSize:13,color:"var(--text-soft)",lineHeight:1.65,margin:0,...style}}>{children}</p>;
+}
+
+// ══════════════════════════════════════════════════════════
+//  ONBOARDING
+// ══════════════════════════════════════════════════════════
+function Onboard({settings,setSett,setPeriods}){
+  const [step,setStep]=useState(0);
+  const [form,setForm]=useState({name:"",cycleLength:28,periodLength:5,lastPeriod:""});
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+
+  const finish=()=>{
+    const merged={...settings,...form};
+    setSett(merged);
+    save("settings",merged);
+    if(form.lastPeriod){
+      const p=[{start:form.lastPeriod,end:addDays(form.lastPeriod,form.periodLength-1),id:Date.now()}];
+      setPeriods(p);save("periods",p);
+    }
+  };
+
+  const obRoot={minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",
+    padding:20,background:"linear-gradient(160deg,#fff5f9,#f5f0ff)"};
+  const obCard={background:"#fff",borderRadius:28,padding:"44px 28px",maxWidth:380,width:"100%",
+    display:"flex",flexDirection:"column",gap:18,alignItems:"center",textAlign:"center",
+    boxShadow:"0 8px 40px rgba(167,139,250,.18)"};
+
+  const steps=[
+    <>
+      <div style={{width:64,height:64,borderRadius:20,background:"linear-gradient(135deg,#fce7f3,#ede9fe)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <Icon name="heart" size={30} color="#ec4899"/>
+      </div>
+      <h1 style={{fontSize:26,fontWeight:700,color:"#1e1235",margin:0,letterSpacing:"-0.02em"}}>Welcome to Bloom</h1>
+      <p style={{fontSize:15,color:"#6b5c8a",lineHeight:1.65,margin:0}}>Your private, intelligent period and health tracker. No subscriptions. Your data never leaves your device.</p>
+      <button style={OB.btn} onClick={()=>setStep(1)}>Get Started</button>
+    </>,
+    <>
+      <div style={{width:64,height:64,borderRadius:20,background:"linear-gradient(135deg,#ede9fe,#fce7f3)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <Icon name="user" size={28} color="#7c3aed"/>
+      </div>
+      <h2 style={OB.title}>What should we call you?</h2>
+      <input style={OB.input} placeholder="Your first name" value={form.name} onChange={e=>set("name",e.target.value)} autoFocus/>
+      <button style={OB.btn} disabled={!form.name} onClick={()=>setStep(2)}>Continue</button>
+    </>,
+    <>
+      <div style={{width:64,height:64,borderRadius:20,background:"linear-gradient(135deg,#fce7f3,#ede9fe)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <Icon name="refresh" size={28} color="#ec4899"/>
+      </div>
+      <h2 style={OB.title}>Your cycle length</h2>
+      <p style={OB.sub}>Average days from the start of one period to the next</p>
+      <div style={{width:"100%"}}>
+        <SliderInput min={18} max={50} value={form.cycleLength} color="#ec4899" showValue unit=" days" onChange={e=>set("cycleLength",+e.target.value)}/>
+      </div>
+      <button style={OB.btn} onClick={()=>setStep(3)}>Continue</button>
+    </>,
+    <>
+      <div style={{width:64,height:64,borderRadius:20,background:"linear-gradient(135deg,#fce7f3,#fff0f6)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <Icon name="drop" size={28} color="#f472b6"/>
+      </div>
+      <h2 style={OB.title}>Period length</h2>
+      <p style={OB.sub}>How many days does your period usually last?</p>
+      <div style={{width:"100%"}}>
+        <SliderInput min={1} max={10} value={form.periodLength} color="#f472b6" showValue unit=" days" onChange={e=>set("periodLength",+e.target.value)}/>
+      </div>
+      <button style={OB.btn} onClick={()=>setStep(4)}>Continue</button>
+    </>,
+    <>
+      <div style={{width:64,height:64,borderRadius:20,background:"linear-gradient(135deg,#ede9fe,#f5f0ff)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <Icon name="calendar" size={28} color="#7c3aed"/>
+      </div>
+      <h2 style={OB.title}>Last period start date</h2>
+      <input type="date" style={OB.input} max={todayStr()} value={form.lastPeriod} onChange={e=>set("lastPeriod",e.target.value)}/>
+      <button style={OB.btn} onClick={finish} disabled={!form.lastPeriod}>Start Tracking</button>
+      <button style={OB.ghost} onClick={finish}>Skip for now</button>
+    </>,
+  ];
+
+  return(
+    <div style={obRoot}>
+      <div style={obCard}>
+        {steps[step]}
+        <div style={{display:"flex",gap:6,marginTop:4}}>
+          {steps.map((_,i)=>(
+            <div key={i} style={{height:6,borderRadius:99,background:i===step?"#ec4899":"#f0ebff",
+              width:i===step?22:7,transition:"all .3s"}}/>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+const OB={
+  btn:{background:"linear-gradient(135deg,#ec4899,#f472b6)",border:"none",borderRadius:16,
+    padding:"14px 24px",color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",width:"100%",
+    boxShadow:"0 4px 18px rgba(236,72,153,.28)",fontFamily:"inherit"},
+  ghost:{background:"none",border:"none",color:"#9f92b8",fontSize:14,cursor:"pointer",
+    padding:"8px",fontFamily:"inherit"},
+  input:{background:"#faf7ff",border:"1.5px solid #f0ebff",borderRadius:14,padding:"12px 16px",
+    color:"#1e1235",fontSize:14,width:"100%",boxSizing:"border-box",fontFamily:"inherit"},
+  title:{fontSize:22,fontWeight:700,color:"#1e1235",margin:0,letterSpacing:"-0.01em"},
+  sub:{fontSize:14,color:"#6b5c8a",lineHeight:1.6,margin:0},
+};
+
+// ══════════════════════════════════════════════════════════
+//  HEADER
+// ══════════════════════════════════════════════════════════
+function Header({settings,alerts,dark}){
+  return(
+    <header style={{maxWidth:480,margin:"0 auto",display:"flex",justifyContent:"space-between",
+      alignItems:"center",padding:"16px 20px 10px",background:"var(--header)",
+      backdropFilter:"blur(14px)",borderBottom:"1px solid var(--border)",
+      position:"sticky",top:0,zIndex:50,boxShadow:"0 1px 0 var(--border)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{width:32,height:32,borderRadius:10,background:"linear-gradient(135deg,#fce7f3,#ede9fe)",
+          display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <Icon name="heart" size={16} color="#ec4899" strokeWidth={2}/>
+        </div>
+        <span style={{fontSize:21,fontWeight:700,letterSpacing:"-0.02em",
+          background:"linear-gradient(120deg,#ec4899,#a78bfa)",
+          WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>bloom</span>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontSize:13,color:"var(--text-soft)",fontWeight:500}}>Hey, {settings.name}</span>
+        {alerts.length>0&&(
+          <div style={{background:"#f472b6",color:"#fff",borderRadius:99,minWidth:20,height:20,
+            padding:"0 6px",display:"flex",alignItems:"center",justifyContent:"center",
+            fontSize:10,fontWeight:700}}>{alerts.length}</div>
+        )}
+      </div>
+    </header>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+//  HOME TAB
+// ══════════════════════════════════════════════════════════
+function HomeTab({pred,periods,logs,alerts,onDismiss,settings,suppressOvulation,dark}){
+  const today=todayStr();
+  const todayLog=logs[today]||{};
+
+  if(!pred) return(
+    <div style={{padding:"64px 24px",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:16}}>
+      <div style={{width:72,height:72,borderRadius:20,background:"linear-gradient(135deg,#fce7f3,#ede9fe)",
+        display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <Icon name="heart" size={36} color="#ec4899"/>
+      </div>
+      <h2 style={{fontSize:22,margin:0,color:"var(--text)",fontWeight:700}}>Welcome, {settings.name}</h2>
+      <Muted>Log your first period in the Calendar tab, or tap Log to track today.</Muted>
+    </div>
+  );
+
+  const pd=PHASE_DATA[pred.phase]||PHASE_DATA.follicular;
+  const progress=Math.min((pred.cycleDay/pred.avgCycle)*100,100);
+  const fertScore=pred.fertilityMap[today]||0;
+
+  return(
+    <div style={{padding:"12px 16px",display:"flex",flexDirection:"column",gap:12,overflowX:"hidden"}}>
+      {/* Alert banners */}
+      {alerts.map(a=>(
+        <div key={a.id} style={{borderRadius:16,padding:"14px 16px",
+          background:a.level==="warning"?"#fff5f7":"#f5f3ff",
+          borderLeft:`4px solid ${a.level==="warning"?"#f472b6":"#a78bfa"}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+            <span style={{fontSize:13,fontWeight:700,color:"var(--text)",display:"flex",gap:8,alignItems:"center"}}>
+              <Icon name="alert" size={14} color={a.level==="warning"?"#f472b6":"#a78bfa"} strokeWidth={2}/>
+              {a.title}
+            </span>
+            <button onClick={()=>onDismiss(a.id)}
+              style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-soft)",padding:2}}>
+              <Icon name="close" size={14} color="var(--text-soft)"/>
+            </button>
+          </div>
+          <Muted>{a.body}</Muted>
+        </div>
+      ))}
+
+      {/* Phase hero */}
+      <div style={{background:pd.bg,borderRadius:24,padding:"22px 20px",boxShadow:`0 4px 28px ${pd.glow}`}}>
+        <div style={{display:"flex",gap:16,alignItems:"flex-start",marginBottom:18}}>
+          <div style={{flex:1}}>
+            <div style={{display:"inline-block",fontSize:11,fontWeight:700,letterSpacing:"0.07em",
+              textTransform:"uppercase",borderRadius:99,padding:"5px 14px",marginBottom:10,
+              background:`${pd.color}18`,color:pd.color}}>
+              {pd.name} · Day {pred.cycleDay}
+            </div>
+            <p style={{fontSize:14,color:"#6b5c8a",lineHeight:1.65,margin:0}}>{pd.desc}</p>
+          </div>
+          <CycleRing progress={progress} color={pd.color} day={pred.cycleDay} total={pred.avgCycle}/>
+        </div>
+        <div style={{display:"flex",gap:0,borderTop:"1px solid rgba(0,0,0,.06)",borderBottom:"1px solid rgba(0,0,0,.06)",margin:"0 -4px 16px"}}>
+          {[["Energy",pd.energy],["Libido",pd.libido],["Skin",pd.skin]].map(([l,v])=>(
+            <div key={l} style={{flex:1,textAlign:"center",padding:"10px 4px"}}>
+              <div style={{fontSize:9,color:"#9f92b8",textTransform:"uppercase",letterSpacing:"0.07em",fontWeight:600,marginBottom:4}}>{l}</div>
+              <div style={{fontSize:12,fontWeight:700,color:pd.color}}>{v}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {pd.tips.map((t,i)=>(
+            <div key={i} style={{fontSize:13,color:"#6b5c8a",padding:"7px 12px",background:"rgba(255,255,255,.6)",borderRadius:12,fontWeight:500}}>
+              {t}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Metrics */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,width:"100%"}}>
+        <MetricCard label="Next Period" value={pred.daysLeft<=0?"Today":`${pred.daysLeft}d`} sub={fmtShort(pred.nextStart)} accent="#f43f5e" icon="drop"/>
+        {suppressOvulation
+          ?<MetricCard label="Method" value={settings.contraception} sub="tracking adjusted" accent="#a78bfa" icon="pill"/>
+          :<MetricCard label="Ovulation" value={fmtShort(pred.ovulation)} sub="predicted" accent="#10b981" icon="heart"/>
+        }
+        <MetricCard label="Avg Cycle" value={`${pred.avgCycle}d`} sub={`± ${Math.round(pred.cycleStd)}d`} accent="#818cf8" icon="refresh"/>
+        {suppressOvulation
+          ?<MetricCard label="Regularity" value={pred.regularity!=null?`${pred.regularity}%`:"—"} sub="cycle score" accent="#7c3aed" icon="activity"/>
+          :<MetricCard label="Fertility" value={`${fertScore}%`} sub="today" accent={fertScore>70?"#10b981":fertScore>30?"#fb923c":"#94a3b8"} icon="activity"/>
+        }
+      </div>
+
+      {/* Fertility strip */}
+      {!suppressOvulation&&pred.fertilityMap[today]>0&&(
+        <Card>
+          <CardHead>Fertility Forecast</CardHead>
+          <FertilityStrip pred={pred}/>
+        </Card>
+      )}
+
+      {/* Today summary */}
+      <Card>
+        <CardHead>Today</CardHead>
+        {todayLog.flow||todayLog.mood?.length||todayLog.symptoms?.length?(
+          <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+            {todayLog.flow&&<Tag color="#fce7f3" text="#db2777">{FLOWS.find(f=>f.id===todayLog.flow)?.label} flow</Tag>}
+            {(todayLog.mood||[]).map(m=><Tag key={m} color="var(--chip-on)" text="var(--chip-on-text)">{MOODS.find(x=>x.id===m)?.label}</Tag>)}
+            {(todayLog.symptoms||[]).map(s=><Tag key={s} color="#fff0f6" text="#db2777">{SYMPTOMS.find(x=>x.id===s)?.label}</Tag>)}
+          </div>
+        ):<Muted>Nothing logged today — tap Log to track how you feel.</Muted>}
+      </Card>
+
+      {/* History */}
+      {periods.length>0&&(
+        <Card>
+          <CardHead>Recent Periods</CardHead>
+          {[...periods].sort((a,b)=>b.start.localeCompare(a.start)).slice(0,3).map(p=>(
+            <div key={p.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",
+              borderBottom:"1px solid var(--border)",fontSize:14,color:"var(--text)"}}>
+              <span>{fmtFull(p.start)}</span>
+              <span style={{color:"var(--text-soft)"}}>{diffDays(p.start,p.end)+1} days</span>
+            </div>
+          ))}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function MetricCard({label,value,sub,accent,icon}){
+  return(
+    <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:20,
+      padding:"16px 14px",display:"flex",flexDirection:"column",alignItems:"flex-start",gap:6,
+      boxShadow:"0 2px 12px var(--shadow)",borderTop:`3px solid ${accent}`}}>
+      <Icon name={icon} size={16} color={accent} strokeWidth={2}/>
+      <div style={{fontSize:22,fontWeight:700,color:accent,letterSpacing:"-0.02em",lineHeight:1}}>{value}</div>
+      <div style={{fontSize:10,color:"var(--text-soft)",textTransform:"uppercase",letterSpacing:"0.07em",fontWeight:600}}>{label}</div>
+      {sub&&<div style={{fontSize:11,color:"var(--text-soft)"}}>{sub}</div>}
+    </div>
+  );
+}
+
+function CycleRing({progress,color,day,total}){
+  const r=36,circ=2*Math.PI*r,dash=circ*(progress/100);
+  return(
+    <div style={{position:"relative",flexShrink:0}}>
+      <svg width={90} height={90} viewBox="0 0 90 90">
+        <circle cx={45} cy={45} r={r} fill="none" stroke="rgba(0,0,0,.07)" strokeWidth={7}/>
+        <circle cx={45} cy={45} r={r} fill="none" stroke={color} strokeWidth={7}
+          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" transform="rotate(-90 45 45)"
+          style={{transition:"stroke-dasharray .8s ease"}}/>
+      </svg>
+      <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",textAlign:"center",lineHeight:1}}>
+        <div style={{fontSize:20,fontWeight:700,color:"var(--text)"}}>{day}</div>
+        <div style={{fontSize:10,color:"var(--text-soft)"}}>/{total}</div>
+      </div>
+    </div>
+  );
+}
+
+function FertilityStrip({pred}){
+  const today=todayStr();
+  const days=[];
+  for(let i=-5;i<=5;i++) days.push(addDays(pred.ovulation,i));
+  return(
+    <div style={{display:"flex",alignItems:"flex-end",gap:3,height:64,paddingBottom:20,position:"relative"}}>
+      {days.map(d=>{
+        const score=pred.fertilityMap[d]||0;
+        const isToday=d===today,isOv=d===pred.ovulation;
+        const h=Math.round((score/100)*44)+4;
+        return(
+          <div key={d} style={{display:"flex",flexDirection:"column",alignItems:"center",flex:1,height:"100%",justifyContent:"flex-end",position:"relative"}}>
+            <div style={{width:"100%",maxWidth:24,borderRadius:"4px 4px 0 0",minHeight:4,height:h,
+              background:isOv?"#10b981":score>70?"#34d399":score>30?"#a7f3d0":"var(--border)",
+              boxShadow:isToday?"0 0 8px #10b981":undefined,transition:"height .4s"}}/>
+            <div style={{fontSize:9,color:isToday?"#10b981":"var(--text-soft)",marginTop:4,fontWeight:isToday?700:500}}>
+              {fmtShort(d).replace(/[A-Za-z ]/g,"")}
+            </div>
+            {isOv&&<div style={{position:"absolute",top:-18,fontSize:9,color:"#10b981",fontWeight:700}}>OV</div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+//  CALENDAR TAB
+// ══════════════════════════════════════════════════════════
+function CalendarTab({periods,pred,logs,addPeriod,removePeriod}){
+  const now=new Date();
+  const [yr,setYr]=useState(now.getFullYear());
+  const [mo,setMo]=useState(now.getMonth());
+  const [sel,setSel]=useState(null);
+  const today=todayStr();
+
+  const prevMo=()=>mo===0?(setYr(y=>y-1),setMo(11)):setMo(m=>m-1);
+  const nextMo=()=>mo===11?(setYr(y=>y+1),setMo(0)):setMo(m=>m+1);
+
+  const getDayStyle=ds=>{
+    if(periods.some(p=>ds>=p.start&&ds<=p.end)) return {bg:"#f43f5e",text:"#fff",border:"transparent"};
+    if(pred){
+      if(ds>=pred.nextStart&&ds<=pred.nextEnd) return {bg:"rgba(244,63,94,.15)",text:"#f43f5e",dash:true};
+      if(ds===pred.ovulation) return {bg:"#10b981",text:"#fff",border:"transparent"};
+      if(ds>=pred.fertileStart&&ds<=pred.fertileEnd) return {bg:"rgba(16,185,129,.15)",text:"#10b981"};
+      if(ds>=pred.pmsStart&&ds<pred.nextStart) return {bg:"rgba(251,146,60,.15)",text:"#fb923c"};
+    }
+    return null;
+  };
+
+  const days=daysInMonth(yr,mo),fd=firstDOW(yr,mo);
+  const selPeriod=sel&&periods.find(p=>sel>=p.start&&sel<=p.end);
+
+  return(
+    <div style={{padding:"12px 16px",display:"flex",flexDirection:"column",gap:12,overflowX:"hidden"}}>
+      <Card>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <button onClick={prevMo} style={{background:"var(--surface)",border:"1px solid var(--border)",
+            color:"var(--text-mid)",borderRadius:12,width:38,height:38,cursor:"pointer",
+            display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <Icon name="chevL" size={18} color="var(--text-mid)"/>
+          </button>
+          <span style={{fontSize:17,fontWeight:700,color:"var(--text)",letterSpacing:"-0.01em"}}>
+            {new Date(yr,mo).toLocaleDateString("en-US",{month:"long",year:"numeric"})}
+          </span>
+          <button onClick={nextMo} style={{background:"var(--surface)",border:"1px solid var(--border)",
+            color:"var(--text-mid)",borderRadius:12,width:38,height:38,cursor:"pointer",
+            display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <Icon name="chevR" size={18} color="var(--text-mid)"/>
+          </button>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
+          {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d=>(
+            <div key={d} style={{textAlign:"center",fontSize:11,color:"var(--text-soft)",
+              padding:"4px 0",fontWeight:700,letterSpacing:"0.04em"}}>{d}</div>
+          ))}
+          {Array.from({length:fd}).map((_,i)=><div key={"e"+i}/>)}
+          {Array.from({length:days}).map((_,i)=>{
+            const d=i+1,ds=isoDate(yr,mo,d),info=getDayStyle(ds);
+            const isToday=ds===today,isSel=ds===sel;
+            return(
+              <button key={d} onClick={()=>setSel(ds===sel?null:ds)}
+                style={{aspectRatio:"1",borderRadius:11,border:`1.5px solid ${info?.dash?"rgba(244,63,94,.5)":info?.border||"transparent"}`,
+                  background:info?.bg||"transparent",color:info?.text||"var(--text)",
+                  fontSize:13,cursor:"pointer",display:"flex",flexDirection:"column",
+                  alignItems:"center",justifyContent:"center",fontWeight:500,
+                  fontFamily:"inherit",position:"relative",
+                  ...(info?.dash?{borderStyle:"dashed"}:{}),
+                  ...(isToday?{outline:"2px solid #a78bfa",outlineOffset:1}:{}),
+                  ...(isSel?{outline:"2px solid var(--text)",outlineOffset:1}:{})}}>
+                {d}
+                {logs[ds]&&<div style={{width:3,height:3,background:"#a78bfa",borderRadius:"50%",position:"absolute",bottom:3}}/>}
+              </button>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Legend */}
+      <div style={{display:"flex",flexWrap:"wrap",gap:8,padding:"0 4px"}}>
+        {[["#f43f5e","Period"],["rgba(244,63,94,.4)","Predicted",true],["#10b981","Ovulation"],["rgba(16,185,129,.4)","Fertile"],["rgba(251,146,60,.4)","PMS"]].map(([c,l,d])=>(
+          <div key={l} style={{display:"flex",alignItems:"center",gap:5}}>
+            <div style={{width:12,height:12,borderRadius:4,background:c,...(d?{border:"1.5px dashed #f43f5e"}:{})}}/>
+            <span style={{fontSize:11,color:"var(--text-soft)",fontWeight:500}}>{l}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Selected date */}
+      {sel&&(
+        <Card>
+          <CardHead>{fmtFull(sel)}</CardHead>
+          {selPeriod
+            ?<button onClick={()=>{removePeriod(selPeriod.id);setSel(null);}} style={BTN.danger}>
+                <Icon name="trash" size={14} color="#e11d48" strokeWidth={2}/> Remove period entry
+              </button>
+            :<button onClick={()=>{addPeriod(sel);setSel(null);}} style={BTN.primary}>
+                Mark as period start
+              </button>
+          }
+          {logs[sel]&&(
+            <div style={{marginTop:10,display:"flex",flexWrap:"wrap",gap:4}}>
+              {logs[sel].flow&&<Tag color="#fce7f3" text="#db2777">{FLOWS.find(f=>f.id===logs[sel].flow)?.label} flow</Tag>}
+              {(logs[sel].symptoms||[]).map(s=><Tag key={s} color="#fff0f6" text="#db2777">{SYMPTOMS.find(x=>x.id===s)?.label}</Tag>)}
+              {(logs[sel].mood||[]).map(m=><Tag key={m}>{MOODS.find(x=>x.id===m)?.label}</Tag>)}
+            </div>
+          )}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+//  LOG TAB
+// ══════════════════════════════════════════════════════════
+function LogTab({logs,notes,setNotes,setLog,toggleLog,periods,addPeriod,pred}){
+  const [date,setDate]=useState(todayStr());
+  const [saved,setSaved]=useState(false);
+  const [dirty,setDirty]=useState(false);
+  const log=logs[date]||{};
+  const note=notes[date]||"";
+  const isPeriod=periods.some(p=>date>=p.start&&date<=p.end);
+
+  const phaseLabel=pred&&(
+    date>=pred.nextStart&&date<=pred.nextEnd?"Predicted period day":
+    date===pred?.ovulation?"Predicted ovulation":
+    date>=pred?.fertileStart&&date<=pred?.fertileEnd?"Fertile window":
+    date>=(pred?.pmsStart||"")&&date<(pred?.nextStart||"")?"PMS window":null
+  );
+  const fertScore=pred?.fertilityMap[date]||0;
+
+  const wrap=(fn)=>(...args)=>{fn(...args);setDirty(true);setSaved(false);};
+
+  const handleSave=()=>{
+    setSaved(true);setDirty(false);
+    setTimeout(()=>setSaved(false),2500);
+  };
+
+  return(
+    <div style={{padding:"12px 16px 100px",display:"flex",flexDirection:"column",gap:12,overflowX:"hidden"}}>
+      {/* Date */}
+      <Card>
+        <CardHead>Date</CardHead>
+        <input type="date" max={todayStr()} value={date}
+          onChange={e=>{setDate(e.target.value);setDirty(false);setSaved(false);}}
+          style={{background:"var(--input)",border:"1.5px solid var(--border)",borderRadius:14,
+            padding:"12px 16px",color:"var(--text)",fontSize:14,width:"100%",
+            boxSizing:"border-box",fontFamily:"inherit"}}/>
+        {phaseLabel&&<Muted style={{marginTop:8,fontStyle:"italic"}}>{phaseLabel}</Muted>}
+        {fertScore>0&&<p style={{fontSize:12,color:"#10b981",fontWeight:600,margin:"6px 0 0"}}>Fertility today: {fertScore}%</p>}
+      </Card>
+
+      {/* Period */}
+      <LogSection title="Period">
+        <Chip active={isPeriod} activeColor="#fce7f3" onClick={()=>{if(!isPeriod){addPeriod(date);setDirty(true);}}}>
+          {isPeriod?"Period day logged":"Mark as period start"}
+        </Chip>
+      </LogSection>
+
+      {/* Flow */}
+      <LogSection title="Flow" accent="#fda4af">
+        <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+          {FLOWS.map(f=>(
+            <button key={f.id} onClick={()=>{setLog(date,"flow",log.flow===f.id?null:f.id);setDirty(true);setSaved(false);}}
+              style={{background:log.flow===f.id?f.color:"var(--chip)",border:`1.5px solid ${log.flow===f.id?f.color:"var(--border)"}`,
+                color:log.flow===f.id?"#fff":"var(--text-mid)",borderRadius:99,padding:"8px 16px",
+                fontSize:13,cursor:"pointer",fontWeight:log.flow===f.id?600:500,fontFamily:"inherit"}}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </LogSection>
+
+      {/* Pain */}
+      <LogSection title="Pain Level" accent="#a78bfa">
+        <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:12}}>
+          <div style={{width:52,height:52,borderRadius:16,display:"flex",alignItems:"center",justifyContent:"center",
+            background:log.pain>=7?"#fce7f3":log.pain>=4?"#fff7ed":"#f0fdf8",flexShrink:0}}>
+            <span style={{fontSize:22,fontWeight:700,color:log.pain>=7?"#db2777":log.pain>=4?"#ea580c":"#059669"}}>{log.pain||"–"}</span>
+          </div>
+          <Muted>{log.pain>=8?"Severe":log.pain>=6?"Moderate–Severe":log.pain>=4?"Moderate":log.pain>=2?"Mild":"No pain selected"}</Muted>
+        </div>
+        <SliderInput min={0} max={10} value={log.pain||0} color="#a78bfa"
+          onChange={e=>{setLog(date,"pain",+e.target.value);setDirty(true);setSaved(false);}}/>
+        <div style={{display:"flex",justifyContent:"space-between",marginTop:2}}>
+          <span style={{fontSize:11,color:"var(--text-soft)"}}>No pain</span>
+          <span style={{fontSize:11,color:"var(--text-soft)"}}>Severe</span>
+        </div>
+      </LogSection>
+
+      {/* Mood */}
+      <LogSection title="Mood" accent="#c4b5fd">
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7}}>
+          {MOODS.map(m=>(
+            <SelChip key={m.id} active={(log.mood||[]).includes(m.id)} activeAccent="#7c3aed"
+              onClick={()=>{toggleLog(date,"mood",m.id);setDirty(true);setSaved(false);}}>
+              {m.label}
+            </SelChip>
+          ))}
+        </div>
+      </LogSection>
+
+      {/* Symptoms */}
+      <LogSection title="Symptoms" accent="#fda4af">
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7}}>
+          {SYMPTOMS.map(s=>(
+            <SelChip key={s.id} active={(log.symptoms||[]).includes(s.id)} activeAccent="#db2777"
+              onClick={()=>{toggleLog(date,"symptoms",s.id);setDirty(true);setSaved(false);}}>
+              {s.label}
+            </SelChip>
+          ))}
+        </div>
+      </LogSection>
+
+      {/* Discharge */}
+      <LogSection title="Discharge">
+        <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
+          {DISCHARGE.map(d=>(
+            <Chip key={d} active={log.discharge===d} onClick={()=>{setLog(date,"discharge",log.discharge===d?null:d);setDirty(true);setSaved(false);}}>
+              {d}
+            </Chip>
+          ))}
+        </div>
+      </LogSection>
+
+      {/* BBT */}
+      <LogSection title="Basal Body Temperature">
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div style={{position:"relative",flexShrink:0}}>
+            <input type="number" step="0.01" min="35" max="40.5" placeholder="36.50"
+              value={log.temp||""} onChange={e=>{setLog(date,"temp",e.target.value);setDirty(true);setSaved(false);}}
+              style={{width:100,background:"var(--input)",border:"1.5px solid var(--border)",
+                borderRadius:12,padding:"10px 32px 10px 14px",color:"var(--text)",fontSize:16,
+                fontWeight:600,textAlign:"center",fontFamily:"inherit"}}/>
+            <span style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",
+              fontSize:12,color:"var(--text-soft)",fontWeight:600,pointerEvents:"none"}}>°C</span>
+          </div>
+          <Muted style={{flex:1,fontSize:12}}>Measure immediately after waking, before getting up.</Muted>
+        </div>
+      </LogSection>
+
+      {/* Water */}
+      <LogSection title="Water Intake" accent="#7dd3fc">
+        <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:10}}>
+          <div style={{width:52,height:52,borderRadius:16,background:"#f0f9ff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <span style={{fontSize:20,fontWeight:700,color:"#0284c7"}}>{log.water||0}</span>
+          </div>
+          <Muted>{log.water||0} glass{(log.water||0)!==1?"es":""} today</Muted>
+        </div>
+        <SliderInput min={0} max={12} value={log.water||0} color="#38bdf8"
+          onChange={e=>{setLog(date,"water",+e.target.value);setDirty(true);setSaved(false);}}/>
+      </LogSection>
+
+      {/* Sleep */}
+      <LogSection title="Sleep">
+        <div style={{display:"flex",flexWrap:"wrap",gap:7,marginBottom:12}}>
+          {["Poor","Fair","Good","Great"].map(q=>(
+            <Chip key={q} active={log.sleep===q} onClick={()=>{setLog(date,"sleep",log.sleep===q?null:q);setDirty(true);setSaved(false);}}>
+              {q}
+            </Chip>
+          ))}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:10}}>
+          <div style={{width:52,height:52,borderRadius:16,background:"var(--surface)",
+            display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,
+            border:"1.5px solid var(--border)"}}>
+            <span style={{fontSize:18,fontWeight:700,color:"#818cf8"}}>{log.sleepHours||7}</span>
+          </div>
+          <Muted style={{fontSize:12}}>{log.sleepHours||7} hour{(log.sleepHours||7)!==1?"s":""} of sleep</Muted>
+        </div>
+        <SliderInput min={0} max={13} value={log.sleepHours||7} color="#818cf8"
+          onChange={e=>{setLog(date,"sleepHours",+e.target.value);setDirty(true);setSaved(false);}}
+          unit="h"/>
+      </LogSection>
+
+      {/* Exercise */}
+      <LogSection title="Exercise">
+        <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
+          {["Rest","Walk","Yoga","Gym","Run","Swim","Cycling","Other"].map(ex=>(
+            <Chip key={ex} active={log.exercise===ex}
+              activeColor="#ecfdf5"
+              onClick={()=>{setLog(date,"exercise",log.exercise===ex?null:ex);setDirty(true);setSaved(false);}}>
+              {ex}
+            </Chip>
+          ))}
+        </div>
+      </LogSection>
+
+      {/* Intimacy */}
+      <LogSection title="Intimacy">
+        <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
+          {SEX.map(s=>(
+            <Chip key={s} active={log.sex===s} onClick={()=>{setLog(date,"sex",log.sex===s?null:s);setDirty(true);setSaved(false);}}>
+              {s}
+            </Chip>
+          ))}
+        </div>
+      </LogSection>
+
+      {/* Notes */}
+      <LogSection title="Journal">
+        <textarea rows={4} placeholder="How are you feeling today?"
+          value={note} onChange={e=>{setNotes(n=>({...n,[date]:e.target.value}));setDirty(true);setSaved(false);}}
+          style={{background:"var(--surface)",border:"1.5px solid var(--border)",borderRadius:16,
+            padding:"14px 16px",color:"var(--text)",fontSize:14,width:"100%",
+            boxSizing:"border-box",resize:"vertical",fontFamily:"inherit",lineHeight:1.6}}/>
+      </LogSection>
+
+      {/* Save button — fixed above nav */}
+      <div style={{position:"fixed",bottom:70,left:"50%",transform:"translateX(-50%)",
+        width:"100%",maxWidth:480,padding:"10px 16px",
+        background:"var(--nav)",backdropFilter:"blur(16px)",
+        borderTop:`1px solid ${saved?"#6ee7b7":"var(--border)"}`}}>
+        <button onClick={handleSave} style={{
+          width:"100%",padding:"13px 20px",borderRadius:16,border:"none",cursor:"pointer",
+          fontFamily:"inherit",fontSize:15,fontWeight:700,
+          display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+          background:saved
+            ?"linear-gradient(135deg,#10b981,#34d399)"
+            :dirty
+            ?"linear-gradient(135deg,#ec4899,#f472b6)"
+            :"var(--surface)",
+          color:saved?"#fff":dirty?"#fff":"var(--text-soft)",
+          border:saved?"none":dirty?"none":"1.5px solid var(--border)",
+          boxShadow:saved?"0 4px 16px rgba(16,185,129,.3)":dirty?"0 4px 16px rgba(236,72,153,.25)":"none",
+          transition:"all .2s",
+        }}>
+          <Icon name={saved?"check":"save"} size={16} color={saved||dirty?"#fff":"var(--text-soft)"} strokeWidth={2}/>
+          {saved?"Saved":"Save Entry"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function LogSection({title,children,accent}){
+  return(
+    <Card accent={accent}>
+      <CardHead>{title}</CardHead>
+      {children}
+    </Card>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+//  INSIGHTS TAB
+// ══════════════════════════════════════════════════════════
+function InsightsTab({periods,logs,pred,settings}){
+  if(!periods.length) return(
+    <div style={{padding:"64px 24px",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
+      <Icon name="chart" size={40} color="var(--text-soft)" strokeWidth={1.5}/>
+      <Muted>Log at least one period to unlock insights.</Muted>
+    </div>
+  );
+
+  const gaps=pred?.gaps||[];
+  const allLogs=Object.entries(logs);
+
+  const sf={};SYMPTOMS.forEach(s=>sf[s.id]=0);
+  allLogs.forEach(([,l])=>(l.symptoms||[]).forEach(s=>sf[s]=(sf[s]||0)+1));
+  const topS=Object.entries(sf).sort((a,b)=>b[1]-a[1]).filter(([,v])=>v>0).slice(0,6);
+  const maxS=Math.max(...topS.map(([,v])=>v),1);
+
+  const mf={};MOODS.forEach(m=>mf[m.id]=0);
+  allLogs.forEach(([,l])=>(l.mood||[]).forEach(m=>mf[m]=(mf[m]||0)+1));
+  const topM=Object.entries(mf).sort((a,b)=>b[1]-a[1]).filter(([,v])=>v>0).slice(0,6);
+  const maxM=Math.max(...topM.map(([,v])=>v),1);
+
+  const bbtData=allLogs.filter(([,l])=>l.temp&&+l.temp>35&&+l.temp<40.5)
+    .sort((a,b)=>a[0].localeCompare(b[0])).slice(-14);
+
+  const painVals=allLogs.map(([,l])=>l.pain).filter(Boolean);
+  const avgPain=painVals.length?Math.round(painVals.reduce((a,b)=>a+b,0)/painVals.length*10)/10:null;
+
+  const avgCycle=pred?.avgCycle||settings.cycleLength;
+  const avgPeriod=pred?.avgPeriod||settings.periodLength;
+
+  return(
+    <div style={{padding:"12px 16px",display:"flex",flexDirection:"column",gap:12,overflowX:"hidden"}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,width:"100%"}}>
+        <MetricCard label="Avg Cycle" value={`${avgCycle}d`} sub={pred?`± ${Math.round(pred.cycleStd)}d`:""} accent="#818cf8" icon="refresh"/>
+        <MetricCard label="Avg Period" value={`${avgPeriod}d`} sub="" accent="#f43f5e" icon="drop"/>
+        <MetricCard label="Cycles Logged" value={periods.length} sub="" accent="#10b981" icon="calendar"/>
+        <MetricCard label="Regularity" value={pred?.regularity!=null?`${pred.regularity}%`:"—"} sub={pred?.regularity>=80?"Regular":pred?.regularity>=60?"Moderate":"Irregular"} accent={pred?.regularity>=80?"#10b981":pred?.regularity>=60?"#fb923c":"#f43f5e"} icon="activity"/>
+      </div>
+
+      {gaps.length>0&&(
+        <Card>
+          <CardHead>Cycle Length History</CardHead>
+          <div style={{display:"flex",alignItems:"flex-end",gap:5,height:90,padding:"8px 0"}}>
+            {gaps.map((g,i)=>(
+              <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",height:"100%",justifyContent:"flex-end"}}>
+                <div style={{width:"100%",borderRadius:"5px 5px 0 0",minHeight:4,
+                  height:`${Math.min(100,Math.round((g/50)*100))}%`,
+                  background:g<21||g>35?"#f43f5e":g<24||g>32?"#fb923c":"#818cf8",
+                  transition:"height .5s ease"}}/>
+                <span style={{fontSize:9,color:"var(--text-soft)",marginTop:4,fontWeight:600}}>{g}</span>
+              </div>
+            ))}
+          </div>
+          <Muted style={{fontSize:11}}>Days between cycles. Normal range: 21–35 days</Muted>
+        </Card>
+      )}
+
+      {bbtData.length>2&&(
+        <Card>
+          <CardHead>Body Temperature (BBT)</CardHead>
+          <BBTChart data={bbtData}/>
+          <Muted style={{fontSize:11,marginTop:6}}>A rise of ~0.2–0.5°C after ovulation is normal</Muted>
+        </Card>
+      )}
+
+      {avgPain&&(
+        <Card>
+          <CardHead>Average Pain</CardHead>
+          <div style={{display:"flex",alignItems:"center",gap:14}}>
+            <div style={{width:52,height:52,borderRadius:16,background:avgPain>=7?"#fce7f3":avgPain>=4?"#fff7ed":"#f0fdf8",
+              display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <span style={{fontSize:20,fontWeight:700,color:avgPain>=7?"#db2777":avgPain>=4?"#ea580c":"#059669"}}>{avgPain}</span>
+            </div>
+            <Muted>out of 10 across {painVals.length} logged days</Muted>
+          </div>
+        </Card>
+      )}
+
+      {topS.length>0&&(
+        <Card>
+          <CardHead>Symptom Frequency</CardHead>
+          {topS.map(([id,count])=>{
+            const s=SYMPTOMS.find(x=>x.id===id);
+            return(
+              <div key={id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,fontSize:13}}>
+                <span style={{width:116,flexShrink:0,color:"var(--text)",fontWeight:500}}>{s?.label}</span>
+                <div style={{flex:1,height:8,background:"var(--surface)",borderRadius:99,overflow:"hidden",border:"1px solid var(--border)"}}>
+                  <div style={{height:"100%",borderRadius:99,background:"#f43f5e",width:`${Math.round((count/maxS)*100)}%`,transition:"width .5s"}}/>
+                </div>
+                <span style={{width:28,textAlign:"right",color:"var(--text-soft)",fontSize:12,fontWeight:600}}>{count}</span>
+              </div>
+            );
+          })}
+        </Card>
+      )}
+
+      {topM.length>0&&(
+        <Card>
+          <CardHead>Mood Frequency</CardHead>
+          {topM.map(([id,count])=>{
+            const m=MOODS.find(x=>x.id===id);
+            return(
+              <div key={id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,fontSize:13}}>
+                <span style={{width:116,flexShrink:0,color:"var(--text)",fontWeight:500}}>{m?.label}</span>
+                <div style={{flex:1,height:8,background:"var(--surface)",borderRadius:99,overflow:"hidden",border:"1px solid var(--border)"}}>
+                  <div style={{height:"100%",borderRadius:99,background:"#818cf8",width:`${Math.round((count/maxM)*100)}%`,transition:"width .5s"}}/>
+                </div>
+                <span style={{width:28,textAlign:"right",color:"var(--text-soft)",fontSize:12,fontWeight:600}}>{count}</span>
+              </div>
+            );
+          })}
+        </Card>
+      )}
+
+      {pred&&(
+        <Card>
+          <CardHead>Upcoming Predictions</CardHead>
+          <Muted style={{marginBottom:12,fontSize:12}}>
+            Confidence: <b style={{color:pred.confidence==="high"?"#10b981":pred.confidence==="medium"?"#fb923c":"#94a3b8"}}>
+              {pred.confidence.charAt(0).toUpperCase()+pred.confidence.slice(1)}
+            </b> &nbsp;({pred.totalCycles} cycle{pred.totalCycles!==1?"s":""} logged)
+          </Muted>
+          {[0,1,2].map(i=>{
+            const st=addDays(pred.nextStart,i*pred.avgCycle);
+            const en=addDays(st,pred.avgPeriod-1);
+            const ov=addDays(st,-14);
+            return(
+              <div key={i} style={{display:"flex",alignItems:"flex-start",gap:12,padding:"10px 0",borderBottom:"1px solid var(--border)"}}>
+                <div style={{width:10,height:10,borderRadius:"50%",background:"#f472b6",marginTop:5,flexShrink:0}}/>
+                <div>
+                  <div style={{fontWeight:700,color:"var(--text)",marginBottom:4,fontSize:14}}>Period: {fmtShort(st)} – {fmtShort(en)}</div>
+                  <Muted style={{fontSize:12}}>Ovulation: ~{fmtShort(ov)}</Muted>
+                </div>
+              </div>
+            );
+          })}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function BBTChart({data}){
+  const temps=data.map(([,l])=>+l.temp);
+  const mn=Math.min(...temps)-.2,mx=Math.max(...temps)+.2;
+  const w=280,h=80;
+  const pts=temps.map((t,i)=>`${Math.round((i/(temps.length-1))*w)},${Math.round(h-((t-mn)/(mx-mn))*h)}`).join(" ");
+  return(
+    <div style={{overflowX:"auto"}}>
+      <svg viewBox={`0 0 ${w} ${h+20}`} width={w} height={h+20} style={{overflow:"visible"}}>
+        <polyline points={pts} fill="none" stroke="#818cf8" strokeWidth={2} strokeLinejoin="round"/>
+        {temps.map((t,i)=>{
+          const x=Math.round((i/(temps.length-1))*w),y=Math.round(h-((t-mn)/(mx-mn))*h);
+          return <circle key={i} cx={x} cy={y} r={3} fill="#818cf8"/>;
+        })}
+        <line x1={0} y1={h} x2={w} y2={h} stroke="var(--border)" strokeWidth={1}/>
+        <text x={0} y={h+14} fontSize={8} fill="var(--text-soft)">{data[0]?.[0]?fmtShort(data[0][0]):""}</text>
+        <text x={w} y={h+14} fontSize={8} fill="var(--text-soft)" textAnchor="end">{data[data.length-1]?.[0]?fmtShort(data[data.length-1][0]):""}</text>
+      </svg>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+//  HEALTH TAB
+// ══════════════════════════════════════════════════════════
+function HealthTab({alerts,insights,onDismiss,settings}){
+  return(
+    <div style={{padding:"12px 16px",display:"flex",flexDirection:"column",gap:12,overflowX:"hidden"}}>
+      <Card style={{background:"#f0fdf8",borderColor:"#a7f3d0"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+          <Icon name="activity" size={18} color="#10b981" strokeWidth={2}/>
+          <CardHead>Health Intelligence</CardHead>
+        </div>
+        <Muted>Bloom analyses your cycle data and adjusts insights based on your contraceptive method. This is not medical diagnosis — always consult a doctor for concerns.</Muted>
+        {settings?.contraception&&settings.contraception!=="None"&&(
+          <div style={{marginTop:10,display:"inline-flex",alignItems:"center",gap:6,
+            background:"#ecfdf5",border:"1px solid #6ee7b7",borderRadius:99,
+            padding:"4px 12px",fontSize:12,fontWeight:600,color:"#059669"}}>
+            <Icon name="pill" size={12} color="#059669" strokeWidth={2}/>
+            Tracking adjusted for: {settings.contraception}
+          </div>
+        )}
+      </Card>
+
+      {alerts.length===0&&insights.length===0&&(
+        <div style={{padding:"48px 24px",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>
+          <Icon name="heart" size={36} color="#10b981" strokeWidth={1.5}/>
+          <Muted>No alerts right now. Keep logging to build your health picture.</Muted>
+        </div>
+      )}
+
+      {alerts.length>0&&(
+        <Card>
+          <CardHead>Alerts</CardHead>
+          {alerts.map(a=>(
+            <div key={a.id} style={{borderRadius:14,padding:"14px",marginBottom:10,
+              background:a.level==="warning"?"#fff8fa":"#faf8ff",
+              border:`1px solid ${a.level==="warning"?"#fecdd3":"var(--border)"}`}}>
+              <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:8}}>
+                <div style={{width:8,height:8,borderRadius:"50%",flexShrink:0,marginTop:5,
+                  background:a.level==="warning"?"#f472b6":"#a78bfa"}}/>
+                <b style={{flex:1,color:"var(--text)",fontSize:14}}>{a.title}</b>
+                <button onClick={()=>onDismiss(a.id)} style={{background:"none",border:"none",cursor:"pointer",padding:2}}>
+                  <Icon name="close" size={14} color="var(--text-soft)"/>
+                </button>
+              </div>
+              <Muted style={{paddingLeft:18}}>{a.body}</Muted>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {insights.length>0&&(
+        <Card>
+          <CardHead>Insights</CardHead>
+          {insights.map(ins=>(
+            <div key={ins.id} style={{borderRadius:14,padding:"14px",marginBottom:10,
+              background:"var(--surface)",border:"1px solid var(--border)"}}>
+              <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:8}}>
+                <div style={{width:8,height:8,borderRadius:"50%",flexShrink:0,marginTop:5,background:"#a78bfa"}}/>
+                <b style={{flex:1,color:"var(--text)",fontSize:14}}>{ins.title}</b>
+              </div>
+              <Muted style={{paddingLeft:18}}>{ins.body}</Muted>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      <Card>
+        <CardHead>When to See a Doctor</CardHead>
+        {["Periods lasting more than 7 days","Soaking through protection every hour for several hours",
+          "Severe pain that prevents daily activities","Bleeding between periods regularly",
+          "No period for 90+ days (and not pregnant)","A sudden change in your usual cycle pattern"
+        ].map((txt,i)=>(
+          <div key={i} style={{padding:"8px 0",fontSize:13,color:"var(--text-mid)",
+            borderBottom:"1px solid var(--border)",display:"flex",gap:10,alignItems:"flex-start"}}>
+            <div style={{width:6,height:6,borderRadius:"50%",background:"#f472b6",marginTop:5,flexShrink:0}}/>
+            {txt}
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+//  SETTINGS TAB
+// ══════════════════════════════════════════════════════════
+function SettingsTab({settings,setSett,periods,setPeriods,logs,setLogs,notes,setNotes,setAlertDismissed}){
+  const upd=(k,v)=>setSett(s=>{const ns={...s,[k]:v};save("settings",ns);return ns;});
+
+  return(
+    <div style={{padding:"12px 16px",display:"flex",flexDirection:"column",gap:12,overflowX:"hidden"}}>
+      <Card>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
+          <Icon name="user" size={14} color="var(--text-soft)" strokeWidth={2}/>
+          <CardHead>Profile</CardHead>
+        </div>
+        <label style={{display:"block",fontSize:13,color:"var(--text-soft)",marginBottom:8,fontWeight:600}}>Your Name</label>
+        <input style={{background:"var(--input)",border:"1.5px solid var(--border)",borderRadius:14,
+          padding:"12px 16px",color:"var(--text)",fontSize:14,width:"100%",
+          boxSizing:"border-box",fontFamily:"inherit"}}
+          value={settings.name} onChange={e=>upd("name",e.target.value)}/>
+      </Card>
+
+      <Card>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
+          <Icon name="refresh" size={14} color="var(--text-soft)" strokeWidth={2}/>
+          <CardHead>Cycle</CardHead>
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8}}>
+          <span style={{fontSize:13,color:"var(--text-soft)",fontWeight:600}}>Average Cycle Length</span>
+          <span style={{fontSize:22,fontWeight:700,color:"#ec4899"}}>{settings.cycleLength}<span style={{fontSize:13,fontWeight:500,color:"var(--text-soft)"}}> days</span></span>
+        </div>
+        <SliderInput min={18} max={50} value={settings.cycleLength} color="#ec4899"
+          onChange={e=>upd("cycleLength",+e.target.value)}/>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8,marginTop:20}}>
+          <span style={{fontSize:13,color:"var(--text-soft)",fontWeight:600}}>Average Period Length</span>
+          <span style={{fontSize:22,fontWeight:700,color:"#f472b6"}}>{settings.periodLength}<span style={{fontSize:13,fontWeight:500,color:"var(--text-soft)"}}> days</span></span>
+        </div>
+        <SliderInput min={1} max={10} value={settings.periodLength} color="#f472b6"
+          onChange={e=>upd("periodLength",+e.target.value)}/>
+      </Card>
+
+      <Card>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
+          <Icon name="pill" size={14} color="var(--text-soft)" strokeWidth={2}/>
+          <CardHead>Contraception</CardHead>
+        </div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
+          {["None","Pill","IUD","Implant","Patch","Condoms","Other"].map(c=>(
+            <Chip key={c} active={settings.contraception===c} onClick={()=>upd("contraception",c)}>{c}</Chip>
+          ))}
+        </div>
+      </Card>
+
+      {/* Dark mode */}
+      <Card>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <Icon name={settings.darkMode?"moon":"sun"} size={18} color={settings.darkMode?"#a78bfa":"#fb923c"} strokeWidth={1.75}/>
+            <div>
+              <div style={{fontSize:14,fontWeight:600,color:"var(--text)"}}>Dark Mode</div>
+              <Muted style={{fontSize:12}}>{settings.darkMode?"Dark theme active":"Light theme active"}</Muted>
+            </div>
+          </div>
+          <button onClick={()=>upd("darkMode",!settings.darkMode)}
+            style={{width:52,height:28,borderRadius:99,border:"none",cursor:"pointer",
+              background:settings.darkMode?"#7c3aed":"#e9e3ff",position:"relative",
+              transition:"background .2s",flexShrink:0}}>
+            <div style={{position:"absolute",top:3,left:settings.darkMode?26:3,width:22,height:22,
+              borderRadius:"50%",background:"#fff",transition:"left .2s",
+              boxShadow:"0 1px 4px rgba(0,0,0,.2)"}}/>
+          </button>
+        </div>
+      </Card>
+
+      <Card>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+          <Icon name="download" size={14} color="var(--text-soft)" strokeWidth={2}/>
+          <CardHead>Export Data</CardHead>
+        </div>
+        <Muted style={{marginBottom:12}}>Download your full data as JSON for backup or to share with a doctor.</Muted>
+        <button style={BTN.secondary} onClick={()=>{
+          try{
+            const data={periods,logs,notes,settings,exported:new Date().toISOString()};
+            const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+            const url=URL.createObjectURL(blob);
+            const a=document.createElement("a");
+            a.href=url;a.download="bloom-health-data.json";
+            document.body.appendChild(a);a.click();
+            setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},1000);
+          }catch(e){alert("Download failed. Try a different browser.");}
+        }}>
+          <Icon name="download" size={14} color="#7c3aed" strokeWidth={2}/> Download My Data
+        </button>
+      </Card>
+
+      <Card>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+          <Icon name="info" size={14} color="var(--text-soft)" strokeWidth={2}/>
+          <CardHead>About Bloom</CardHead>
+        </div>
+        <Muted>Bloom v2 — Free, private period and health tracker. All data is stored only on your device. No servers, no subscriptions, no tracking.</Muted>
+      </Card>
+
+      <Card>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+          <Icon name="trash" size={14} color="#e11d48" strokeWidth={2}/>
+          <CardHead>Data</CardHead>
+        </div>
+        <button style={BTN.danger} onClick={()=>{
+          if(window.confirm("Delete all Bloom data? This cannot be undone.")){
+            ["periods","logs","notes","settings","dismissed"].forEach(k=>{try{localStorage.removeItem("bloom2_"+k);}catch(e){}});
+            setPeriods([]);setLogs({});setNotes({});setAlertDismissed([]);setSett({...DEFAULTS});
+          }
+        }}>
+          <Icon name="trash" size={14} color="#e11d48" strokeWidth={2}/> Delete All Data
+        </button>
+      </Card>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+//  BOTTOM NAV
+// ══════════════════════════════════════════════════════════
+function BottomNav({tab,setTab,alerts,dark}){
+  const tabs=[
+    {id:"home",icon:"home",label:"Home"},
+    {id:"calendar",icon:"calendar",label:"Calendar"},
+    {id:"log",icon:"pen",label:"Log"},
+    {id:"insights",icon:"chart",label:"Insights"},
+    {id:"health",icon:"activity",label:"Health",badge:alerts.length},
+    {id:"settings",icon:"gear",label:"Settings"},
+  ];
+  return(
+    <nav style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",
+      maxWidth:480,display:"flex",background:"var(--nav)",backdropFilter:"blur(20px)",
+      borderTop:"1px solid var(--border)",padding:"8px 0 12px",zIndex:100,
+      boxShadow:"0 -2px 16px var(--shadow)"}}>
+      {tabs.map(t=>{
+        const active=tab===t.id;
+        return(
+          <button key={t.id} onClick={()=>setTab(t.id)}
+            style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3,
+              background:"none",border:"none",cursor:"pointer",padding:"4px 2px",
+              color:active?"#ec4899":"var(--text-soft)",transition:"color .2s",fontFamily:"inherit",
+              position:"relative"}}>
+            <div style={{position:"relative",display:"inline-block"}}>
+              <Icon name={t.icon} size={20} color={active?"#ec4899":"var(--text-soft)"} strokeWidth={active?2:1.75}/>
+              {t.badge>0&&(
+                <div style={{position:"absolute",top:-5,right:-7,background:"#f472b6",color:"#fff",
+                  borderRadius:"50%",width:15,height:15,display:"flex",alignItems:"center",
+                  justifyContent:"center",fontSize:8,fontWeight:700,border:"2px solid var(--nav)"}}>
+                  {t.badge}
+                </div>
+              )}
+            </div>
+            <span style={{fontSize:9,fontWeight:active?700:500,letterSpacing:"0.04em"}}>{t.label}</span>
+            {active&&<div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",
+              width:20,height:2,background:"#ec4899",borderRadius:99}}/>}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+//  SHARED BUTTON STYLES
+// ══════════════════════════════════════════════════════════
+const BTN={
+  primary:{background:"linear-gradient(135deg,#ec4899,#f472b6)",border:"none",borderRadius:14,
+    padding:"12px 20px",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",width:"100%",
+    boxShadow:"0 4px 16px rgba(236,72,153,.25)",fontFamily:"inherit",
+    display:"flex",alignItems:"center",justifyContent:"center",gap:8},
+  secondary:{background:"var(--chip-on)",border:"1.5px solid var(--chip-on-border)",borderRadius:14,
+    padding:"11px 20px",color:"var(--chip-on-text)",fontSize:14,cursor:"pointer",width:"100%",
+    fontWeight:600,fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:8},
+  danger:{background:"#fff1f3",border:"1.5px solid #fecdd3",borderRadius:14,padding:"11px 20px",
+    color:"#e11d48",fontSize:14,cursor:"pointer",width:"100%",fontWeight:600,fontFamily:"inherit",
+    display:"flex",alignItems:"center",justifyContent:"center",gap:8},
+};
+
+// ══════════════════════════════════════════════════════════
+//  DECORATIVE
+// ══════════════════════════════════════════════════════════
+function Blobs({phase}){
+  const cols={menstrual:"#fda4af",follicular:"#c4b5fd",fertile:"#6ee7b7",
+    ovulation:"#6ee7b7",pms:"#fdba74",luteal:"#c4b5fd"};
+  const col=phase&&cols[phase]?cols[phase]:"#e9d5ff";
+  return(
+    <>
+      <div style={{position:"fixed",top:-160,right:-120,width:420,height:420,borderRadius:"50%",
+        background:`radial-gradient(circle,${col}44 0%,transparent 65%)`,
+        pointerEvents:"none",zIndex:0,transition:"background 1.2s ease"}}/>
+      <div style={{position:"fixed",bottom:-100,left:-100,width:340,height:340,borderRadius:"50%",
+        background:"radial-gradient(circle,#e9d5ff30 0%,transparent 65%)",pointerEvents:"none",zIndex:0}}/>
+    </>
+  );
+}
+
+
+    // Mount the app
+    const rootEl = document.getElementById("root");
+    const reactRoot = ReactDOM.createRoot(rootEl);
+    reactRoot.render(React.createElement(App));
+  </script>
+
+  <script>
+    // PWA install prompt
+    let deferredPrompt;
+    window.addEventListener("beforeinstallprompt", e => {
+      e.preventDefault();
+      deferredPrompt = e;
+    });
+
+    // Register a minimal service worker for offline support
+    if ("serviceWorker" in navigator) {
+      const sw = `
+        const CACHE = "bloom-v2";
+        const ASSETS = [location.href];
+        self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS))));
+        self.addEventListener("fetch", e => e.respondWith(caches.match(e.request).then(r => r || fetch(e.request))));
+      `;
+      const blob = new Blob([sw], {type: "application/javascript"});
+      const swUrl = URL.createObjectURL(blob);
+      navigator.serviceWorker.register(swUrl).catch(() => {});
+    }
+  </script>
+</body>
+</html>
