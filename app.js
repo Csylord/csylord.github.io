@@ -308,9 +308,7 @@ function renderHome(pred,periods,logs,alerts,settings,suppressOv){
 
   // Alert banners
   alerts.forEach(a=>{
-    const banner=div('alert-banner');
-    banner.style.background=a.warn?'#fff5f7':'#f5f3ff';
-    banner.style.borderLeft=`4px solid ${a.warn?'#f472b6':'#a78bfa'}`;
+    const banner=div('alert-banner '+(a.warn?'alert-banner-warn':'alert-banner-info'));
     const head=div('alert-banner-head');
     head.innerHTML=icon('alert',14,a.warn?'#f472b6':'#a78bfa',2)+' ';
     const t=el('span');t.textContent=a.title;head.appendChild(t);
@@ -324,14 +322,14 @@ function renderHome(pred,periods,logs,alerts,settings,suppressOv){
   });
 
   // Phase hero
-  const hero=div('phase-hero');hero.style.background=ph.bg;
+  const hero=div('phase-hero phase-'+pred.phase);hero.style.background=ph.bg;
   hero.style.boxShadow=`0 4px 28px rgba(0,0,0,.08)`;
   const top=div('',[],'',{display:'flex',gap:'16px',alignItems:'flex-start',marginBottom:'18px'});
   top.style.cssText='display:flex;gap:16px;align-items:flex-start;margin-bottom:18px';
   const left=div('');
   const tag=div('phase-tag');tag.textContent=ph.name+' · Day '+pred.cycleDay;
   tag.style.background=ph.color+'18';tag.style.color=ph.color;
-  const desc=el('p',{style:{fontSize:'14px',color:'#6b5c8a',lineHeight:'1.65',margin:'0'}});
+  const desc=el('p',{style:{fontSize:'14px',color:'var(--text-mid)',lineHeight:'1.65',margin:'0'}});
   desc.textContent=ph.desc;
   left.appendChild(tag);left.appendChild(desc);
   top.appendChild(left);
@@ -680,17 +678,17 @@ function renderInsights(periods,logs,pred,settings){
 
 function renderHealth(alerts,insights,settings){
   const wrap=div('scroll');
-  const intro=cardEl([]);intro.style.background='#f0fdf8';intro.style.borderColor='#a7f3d0';
+  const intro=cardEl([]);intro.classList.add('card-health-intro');
   const ihead=div('');ihead.style.cssText='display:flex;align-items:center;gap:10px;margin-bottom:10px';
   ihead.innerHTML=icon('activity',18,'#10b981',2);const iht=cardHead('Health Intelligence');ihead.appendChild(iht);
   intro.appendChild(ihead);intro.appendChild(mutedEl('Bloom analyses your cycle data and adjusts insights based on your contraceptive method. This is not medical diagnosis — always consult a doctor for concerns.'));
-  if(settings.contraception&&settings.contraception!=='None'){const badge=div('');badge.style.cssText='margin-top:10px;display:inline-flex;align-items:center;gap:6px;background:#ecfdf5;border:1px solid #6ee7b7;border-radius:99px;padding:4px 12px;font-size:12px;font-weight:600;color:#059669';badge.innerHTML=icon('pill',12,'#059669',2)+' Tracking adjusted for: '+settings.contraception;intro.appendChild(badge);}
+  if(settings.contraception&&settings.contraception!=='None'){const badge=div('contra-badge');badge.innerHTML=icon('pill',12,'#059669',2)+' Tracking adjusted for: '+settings.contraception;intro.appendChild(badge);}
   wrap.appendChild(intro);
   if(!alerts.length&&!insights.length){const e=div('empty');e.innerHTML=icon('heart',36,'#10b981',1.5);e.appendChild(mutedEl('No alerts right now. Keep logging to build your health picture.'));wrap.appendChild(e);}
   if(alerts.length){
     const ac=cardEl([cardHead('Alerts')]);
     alerts.forEach(a=>{
-      const hc=div('health-card');hc.style.background=a.warn?'#fff8fa':'#faf8ff';hc.style.borderColor=a.warn?'#fecdd3':'var(--border)';
+      const hc=div('health-card '+(a.warn?'health-card-warn':'health-card-info'));
       const ht=div('');ht.style.cssText='display:flex;align-items:flex-start;gap:10px;margin-bottom:8px';
       const dot=div('health-dot');dot.style.background=a.warn?'#f472b6':'#a78bfa';
       const title=el('b',{style:{flex:'1',color:'var(--text)',fontSize:'14px'}});title.textContent=a.title;
@@ -859,9 +857,11 @@ function render(){
   const existingSaveBar=document.getElementById('save-bar');if(existingSaveBar)existingSaveBar.remove();
   app.innerHTML='';
 
-  // Apply theme
-  app.dataset.theme=state.settings.darkMode?'dark':'light';
-  document.querySelector('meta[name=theme-color]').content=state.settings.darkMode?'#0e0920':'#faf7ff';
+  // Apply theme to both #app and <html> so body/html bg colour syncs
+  const theme=state.settings.darkMode?'dark':'light';
+  app.dataset.theme=theme;
+  document.documentElement.dataset.theme=theme;
+  document.querySelector('meta[name=theme-color]').content=state.settings.darkMode?'#0e0920':'#ec4899';
 
   // Blobs
   const blob1=div('blob');blob1.style.cssText='top:-160px;right:-120px;width:420px;height:420px';
