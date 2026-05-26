@@ -115,7 +115,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.4}
   width:32px;height:32px;border-radius:10px;
   background:linear-gradient(135deg,#fce7f3,#ede9fe);
   display:flex;align-items:center;justify-content:center;
-  animation:floatBrand 4s ease-in-out infinite;
+  animation:floatBrand 7s ease-in-out infinite;
   transform-origin:center bottom;
 }
 .brand-name{
@@ -124,7 +124,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.4}
   background-size:300% auto;
   -webkit-background-clip:text;background-clip:text;
   -webkit-text-fill-color:transparent;
-  animation:gradientFlow 6s linear infinite;
+  animation:gradientFlow 14s linear infinite;
 }
 .alert-badge{
   background:#f472b6;color:#fff;border-radius:99px;min-width:20px;height:20px;
