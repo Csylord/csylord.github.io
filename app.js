@@ -6,8 +6,9 @@ const todayStr=()=>{const d=new Date();return `${d.getFullYear()}-${p2(d.getMont
 const parseDate=s=>new Date(s+'T00:00:00');
 const addDays=(s,n)=>{const d=parseDate(s);d.setDate(d.getDate()+n);return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;};
 const diffDays=(a,b)=>Math.round((parseDate(b)-parseDate(a))/86400000);
-const fmtShort=s=>{if(!s)return'';const d=parseDate(s);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});};
-const fmtFull=s=>{if(!s)return'';const d=parseDate(s);return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});};
+const fmtShort=s=>{if(!s)return'';const d=parseDate(s);return d.toLocaleDateString('en-GB',{month:'short',day:'numeric'});};
+const fmtFull=s=>{if(!s)return'';const d=parseDate(s);return d.toLocaleDateString('en-GB',{month:'short',day:'numeric',year:'numeric'});};
+const fmtDay=s=>{if(!s)return'';const d=parseDate(s);const t=todayStr();if(s===t)return'Today';if(s===addDays(t,-1))return'Yesterday';return d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});};
 const isoDate=(y,m,d)=>`${y}-${p2(m+1)}-${p2(d)}`;
 const daysInMonth=(y,m)=>new Date(y,m+1,0).getDate();
 const firstDOW=(y,m)=>new Date(y,m,1).getDay();
@@ -82,15 +83,15 @@ function analyzeHealth(periods,logs,pred,settings){
   const recent=allLogs.filter(([d])=>{const diff=diffDays(d,today);return diff>=0&&diff<=60;});
   const sf={};recent.forEach(([,l])=>(l.symptoms||[]).forEach(s=>sf[s]=(sf[s]||0)+1));
   const mf={};recent.forEach(([,l])=>(l.mood||[]).forEach(m=>mf[m]=(mf[m]||0)+1));
-  if((sf.cramps||0)>=8)alerts.push({id:'cramps',warn:cp.hormonal,title:'Frequent Cramping',body:cp.hormonal?'You have logged frequent cramps. While hormonal contraception can reduce cramping, persistent pain may indicate endometriosis, fibroids, or adenomyosis.':'You have logged cramps on 8 or more days in the last 60 days. Persistent cramping could indicate endometriosis or fibroids. Consider speaking with a gynaecologist.'});
-  if((sf.headache||0)>=10)insights.push({id:'headache',title:'Frequent Headaches',body:cp.hormonal?`Hormonal contraception like the ${contra} can trigger headaches due to oestrogen fluctuations. If headaches are new or worsening, discuss with your doctor.`:'Hormonal headaches often occur just before or during your period due to oestrogen drops.',warn:false});
+  if((sf.Cramps||0)>=8)alerts.push({id:'cramps',warn:cp.hormonal,title:'Frequent Cramping',body:cp.hormonal?'You have logged frequent cramps. While hormonal contraception can reduce cramping, persistent pain may indicate endometriosis, fibroids, or adenomyosis.':'You have logged cramps on 8 or more days in the last 60 days. Persistent cramping could indicate endometriosis or fibroids. Consider speaking with a gynaecologist.'});
+  if((sf.Headache||0)>=10)insights.push({id:'headache',title:'Frequent Headaches',body:cp.hormonal?`Hormonal contraception like the ${contra} can trigger headaches due to oestrogen fluctuations. If headaches are new or worsening, discuss with your doctor.`:'Hormonal headaches often occur just before or during your period due to oestrogen drops.',warn:false});
   const heavyDays=recent.filter(([,l])=>l.flow==='heavy'||l.flow==='very_heavy').length;
   if(heavyDays>=5){
     if(contra==='IUD')alerts.push({id:'heavy',warn:true,title:'Heavy Flow with IUD',body:'Heavy periods are common with the copper IUD, especially in the first 3 to 6 months. If soaking through protection hourly, consult your doctor about iron monitoring.'});
     else if(cp.hormonal)alerts.push({id:'heavy',warn:true,title:'Heavy Flow Despite Hormonal Contraception',body:`Hormonal methods like the ${contra} typically lighten periods. Unexpectedly heavy flow may warrant a review of your contraceptive or a check for underlying causes.`});
     else alerts.push({id:'heavy',warn:true,title:'Frequently Heavy Flow',body:'Consistently heavy periods can cause anaemia and may signal fibroids, polyps, or a clotting disorder. Please discuss with your doctor.'});
   }
-  const lowMood=(mf.anxious||0)+(mf.irritable||0)+(mf.sad||0)+(mf.depressed||0);
+  const lowMood=(mf.Anxious||0)+(mf.Irritable||0)+(mf.Sad||0)+(mf.Low||0);
   if(lowMood>=12)insights.push({id:'mood',title:'Low Mood Pattern',body:cp.hormonal?`Hormonal contraception can affect mood. You have logged anxiety, irritability, or low mood frequently — this may be related to the ${contra}. Speak with your doctor about alternatives if this affects your quality of life.`:'You have logged anxiety, irritability, or sadness frequently. If these moods cluster before your period, it may be PMDD — a recognised condition that responds well to treatment.',warn:false});
   const temps=recent.map(([,l])=>parseFloat(l.temp)).filter(t=>t>35&&t<40);
   if(temps.length>=5){const avg=temps.reduce((a,b)=>a+b,0)/temps.length;if(!cp.suppressesOvulation&&avg<36.1)insights.push({id:'bbt',title:'Low Basal Temperature',body:`Your average BBT is ${avg.toFixed(2)}°C. A consistently low BBT can sometimes indicate hypothyroidism. Track daily for the most insight.`,warn:false});}
@@ -106,13 +107,12 @@ function analyzeHealth(periods,logs,pred,settings){
   return{alerts,insights};
 }
 
-// ─── SVG Icons ───────────────────────────────────────────────────────────────
+// ─── Icons ───────────────────────────────────────────────────────────────────
 const ICONS={
   home:'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10',
   calendar:'M8 2v4 M16 2v4 M3 10h18 M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z',
-  pen:'M12 20h9 M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z',
+  plus:'M12 5v14 M5 12h14',
   chart:'M18 20V10 M12 20V4 M6 20v-6',
-  activity:'M22 12h-4l-3 9L9 3l-3 9H2',
   gear:'M12 15a3 3 0 100-6 3 3 0 000 6z M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z',
   check:'M20 6L9 17l-5-5',
   close:'M18 6L6 18 M6 6l12 12',
@@ -129,31 +129,46 @@ const ICONS={
   save:'M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z M17 21v-8H7v8 M7 3v5h8',
   heart:'M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z',
   pill:'M10.5 4.5a6 6 0 018.49 8.49l-9 9a6 6 0 01-8.49-8.49l9-9z M12 12L6.5 17.5',
-  info:'M12 22a10 10 0 100-20 10 10 0 000 20z M12 8h.01 M12 12v4',
+  activity:'M22 12h-4l-3 9L9 3l-3 9H2',
+  spark:'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
 };
 function icon(name,size=20,color='currentColor',sw=1.75){
   const paths=(ICONS[name]||'M0 0').split(' M').map((d,i)=>i===0?d:'M'+d);
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${paths.map(d=>`<path d="${d}"/>`).join('')}</svg>`;
 }
 
-// ─── Phase Data ───────────────────────────────────────────────────────────────
+// ─── Data ─────────────────────────────────────────────────────────────────────
 const PHASES={
-  menstrual:{name:'Menstrual',color:'#f472b6',bg:'#fff0f6',desc:'Your uterine lining sheds. Oestrogen and progesterone are at their lowest.',tips:['Heat pad for cramps','Ibuprofen with food','Iron-rich foods help','Stay hydrated'],energy:'Low',libido:'Low–Medium',skin:'May break out'},
-  follicular:{name:'Follicular',color:'#a78bfa',bg:'#f5f3ff',desc:'Oestrogen rises as follicles mature. You will feel more energetic and sociable.',tips:['Great time for intense workouts','Tackle creative projects','Lighter meals feel good','Mood will lift'],energy:'Rising',libido:'Increasing',skin:'Glowing'},
-  fertile:{name:'Fertile Window',color:'#10b981',bg:'#f0fdf8',desc:'Your most fertile days. Oestrogen peaks and your body is ready for ovulation.',tips:['High chance of conception','Peak physical performance','Great for social plans','Sharp focus and memory'],energy:'High',libido:'High',skin:'Clear and glowing'},
-  ovulation:{name:'Ovulation',color:'#059669',bg:'#ecfdf5',desc:'An egg is released. You may feel a surge of confidence and sex drive today.',tips:['Note any BBT spike','You may feel a brief twinge','Peak fertility today','High energy and confidence'],energy:'Peak',libido:'Peak',skin:'Best it will look'},
-  pms:{name:'PMS Phase',color:'#fb923c',bg:'#fff8f2',desc:'Progesterone drops as your period approaches. Mood and physical symptoms may appear.',tips:['Magnesium-rich foods help','Gentle yoga over intense exercise','Reduce caffeine and alcohol','Communicate your needs'],energy:'Declining',libido:'Low',skin:'May bloat or break out'},
-  luteal:{name:'Luteal Phase',color:'#7c3aed',bg:'#faf5ff',desc:'Progesterone is high. You may feel calmer but tired.',tips:['Prioritise sleep','Snack on nuts and seeds','Moderate exercise is ideal','Good time for reflection'],energy:'Medium',libido:'Medium',skin:'May get oilier'},
+  menstrual:{name:'Menstrual',emoji:'🌹',color:'#e879b8',bg:'#fff0f6',desc:'Your uterine lining sheds. Oestrogen and progesterone are at their lowest. Rest and gentle self-care are key.',tips:['🌡️ Heat pad eases cramps','💊 Ibuprofen with food','🥦 Iron-rich foods help','💧 Stay well hydrated'],energy:'Low',libido:'Low–Medium',skin:'May break out'},
+  follicular:{name:'Follicular',emoji:'🌸',color:'#9d5cf6',bg:'#f5f3ff',desc:'Oestrogen rises as follicles mature. You\'ll feel more energetic, creative, and sociable.',tips:['💪 Great for intense workouts','🎨 Tackle creative projects','🥗 Lighter meals feel good','☀️ Your mood will lift'],energy:'Rising',libido:'Increasing',skin:'Glowing'},
+  fertile:{name:'Fertile Window',emoji:'🌿',color:'#10b981',bg:'#f0fdf8',desc:'Your most fertile days. Oestrogen peaks and your body is ready for ovulation.',tips:['✨ Peak physical performance','👯 Great for social plans','🧠 Sharp focus and memory','💃 High confidence'],energy:'High',libido:'High',skin:'Clear and glowing'},
+  ovulation:{name:'Ovulation',emoji:'⭐',color:'#059669',bg:'#ecfdf5',desc:'An egg is released. You may notice a surge of confidence and energy today.',tips:['🌡️ Note any BBT rise','💫 You may feel a brief twinge','🏆 Peak fertility today','⚡ High energy — use it'],energy:'Peak',libido:'Peak',skin:'Best it\'ll look'},
+  pms:{name:'PMS Phase',emoji:'🌤️',color:'#f59e0b',bg:'#fff8f0',desc:'Progesterone drops as your period approaches. Mood and physical symptoms may appear.',tips:['🥜 Magnesium-rich foods help','🧘 Gentle yoga over gym','☕ Reduce caffeine & alcohol','💬 Communicate your needs'],energy:'Declining',libido:'Low',skin:'May bloat or break out'},
+  luteal:{name:'Luteal Phase',emoji:'🌙',color:'#8b5cf6',bg:'#faf5ff',desc:'Progesterone is high. You may feel calmer but tire more easily.',tips:['😴 Prioritise your sleep','🌰 Snack on nuts & seeds','🚶 Moderate exercise ideal','✍️ Good time for reflection'],energy:'Medium',libido:'Medium',skin:'May get oilier'},
 };
-const SYMPTOMS=['Cramps','Headache','Bloating','Back Pain','Acne','Fatigue','Nausea','Tender Breasts','Dizziness','Insomnia','Hot Flashes','Cravings'];
-const MOODS=['Happy','Sad','Anxious','Irritable','Calm','Energetic','Romantic','Sensitive','Low','Confident','Focused','Social'];
-const FLOWS=[{id:'spotting',label:'Spotting',color:'#fda4af'},{id:'light',label:'Light',color:'#f472b6'},{id:'medium',label:'Medium',color:'#ec4899'},{id:'heavy',label:'Heavy',color:'#be185d'},{id:'very_heavy',label:'Very Heavy',color:'#881337'}];
+const MOODS=[
+  {id:'Happy',emoji:'😊'},{id:'Sad',emoji:'😢'},{id:'Anxious',emoji:'😰'},{id:'Irritable',emoji:'😤'},
+  {id:'Calm',emoji:'😌'},{id:'Energetic',emoji:'⚡'},{id:'Romantic',emoji:'💕'},{id:'Sensitive',emoji:'🥺'},
+  {id:'Low',emoji:'😞'},{id:'Confident',emoji:'💪'},{id:'Focused',emoji:'🎯'},{id:'Social',emoji:'🌟'},
+];
+const SYMPTOMS=[
+  {id:'Cramps',emoji:'🤕'},{id:'Headache',emoji:'🤯'},{id:'Bloating',emoji:'🫃'},{id:'Back Pain',emoji:'😣'},
+  {id:'Acne',emoji:'😅'},{id:'Fatigue',emoji:'😴'},{id:'Nausea',emoji:'🤢'},{id:'Tender Breasts',emoji:'💗'},
+  {id:'Dizziness',emoji:'😵'},{id:'Insomnia',emoji:'🌙'},{id:'Hot Flashes',emoji:'🔥'},{id:'Cravings',emoji:'🍫'},
+];
+const FLOWS=[
+  {id:'spotting',label:'Spotting',color:'#fda4af',size:6},
+  {id:'light',label:'Light',color:'#f472b6',size:10},
+  {id:'medium',label:'Medium',color:'#ec4899',size:14},
+  {id:'heavy',label:'Heavy',color:'#be185d',size:18},
+  {id:'very_heavy',label:'Very Heavy',color:'#881337',size:22},
+];
 const DISCHARGE=['None','Dry','Sticky','Creamy','Watery','Egg White','Unusual'];
-const EXERCISE=['Rest','Walk','Yoga','Gym','Run','Swim','Cycling','Other'];
-const SLEEP_Q=['Poor','Fair','Good','Great'];
+const EXERCISE=['Rest 🛌','Walk 🚶','Yoga 🧘','Gym 💪','Run 🏃','Swim 🏊','Cycling 🚴','Other'];
+const SLEEP_Q=['Poor 😴','Fair 😐','Good 🙂','Great 😄'];
 const SEX=['Protected','Unprotected','None'];
 
-// ─── State Manager ────────────────────────────────────────────────────────────
+// ─── State ────────────────────────────────────────────────────────────────────
 const state={
   tab:'home',
   periods:load('periods',[]),
@@ -162,10 +177,8 @@ const state={
   settings:load('settings',{cycleLength:28,periodLength:5,name:'',contraception:'None',darkMode:false}),
   dismissed:load('dismissed',[]),
 };
-function setState(patch){Object.assign(state,patch);render();}
-function persistAll(){save('periods',state.periods);save('logs',state.logs);save('notes',state.notes);save('settings',state.settings);save('dismissed',state.dismissed);}
 
-// ─── DOM helpers ──────────────────────────────────────────────────────────────
+// ─── DOM Helpers ──────────────────────────────────────────────────────────────
 function el(tag,attrs={},children=[]){
   const e=document.createElement(tag);
   Object.entries(attrs).forEach(([k,v])=>{
@@ -177,37 +190,44 @@ function el(tag,attrs={},children=[]){
   children.forEach(c=>{if(c==null)return;e.appendChild(typeof c==='string'?document.createTextNode(c):c);});
   return e;
 }
-function div(cls,children=[],style={}){return el('div',{class:cls,style},children);}
-function btn(cls,html,onClick,style={}){const b=el('button',{class:cls,style});b.innerHTML=html;b.addEventListener('click',onClick);return b;}
-function span(cls,text,style={}){const s=el('span',{class:cls,style});s.textContent=text;return s;}
-function h(level,text,style={}){const e=el('h'+level,{style});e.textContent=text;return e;}
+const div=(cls,ch=[])=>{const e=document.createElement('div');if(cls)e.className=cls;ch.forEach(c=>{if(c)e.appendChild(typeof c==='string'?document.createTextNode(c):c);});return e;};
+function btn(cls,html,onClick){const b=el('button',{class:cls});b.innerHTML=html;b.addEventListener('click',onClick);return b;}
 function p(cls,text){const e=el('p',{class:cls});e.textContent=text;return e;}
-function cardEl(children=[],extraClass='',accent=''){
-  const c=div('card '+extraClass);
-  if(accent)c.style.borderTop=`3px solid ${accent}`;
+function cardEl(children=[],extraClass=''){
+  const c=div('card '+(extraClass||''));
   children.forEach(ch=>{if(ch)c.appendChild(typeof ch==='string'?document.createTextNode(ch):ch);});
   return c;
 }
-function cardHead(text){const d=div('card-head');d.textContent=text;return d;}
-function mutedEl(text){return p('muted',text);}
+function sectionLabel(text,emoji=''){
+  const d=div('section-label');
+  if(emoji)d.appendChild(document.createTextNode(emoji+' '));
+  d.appendChild(document.createTextNode(text));
+  return d;
+}
+function muted(text){return p('muted',text);}
 
-function sliderEl(opts){
-  const{min,max,value,color,onChange,showValue=false,unit=''}=opts;
+function sliderEl({min,max,value,color,onChange,title='',unit='',showCentered=false}){
   const wrap=div('slider-wrap');
-  if(showValue){
-    const vd=div('slider-val');
-    const big=el('span',{class:'big',style:{color}});big.textContent=value;
+  if(showCentered){
+    const vd=div('slider-centered-val');
+    const big=el('span',{class:'big'});big.style.color=color;big.textContent=value;
     const u=el('span',{class:'unit'});u.textContent=unit;
-    vd.appendChild(big);vd.appendChild(u);
-    wrap.appendChild(vd);
+    vd.appendChild(big);vd.appendChild(u);wrap.appendChild(vd);
+  } else if(title){
+    const hd=div('slider-header');
+    const tl=div('slider-title');tl.textContent=title;
+    const vb=div('');vb.innerHTML=`<span class="slider-val-badge" style="color:${color}">${value}</span><span class="slider-unit">${unit}</span>`;
+    hd.appendChild(tl);hd.appendChild(vb);wrap.appendChild(hd);
   }
   const inp=el('input',{type:'range',min,max,value});
   const pct=Math.round(((value-min)/(max-min))*100);
-  inp.style.background=`linear-gradient(to right,${color} 0%,${color} ${pct}%,var(--border) ${pct}%,var(--border) 100%)`;
+  const trackCol=`linear-gradient(to right,${color} 0%,${color} ${pct}%,var(--border) ${pct}%,var(--border) 100%)`;
+  inp.style.background=trackCol;
   inp.addEventListener('input',e=>{
-    const v=+e.target.value,p2=Math.round(((v-min)/(max-min))*100);
-    inp.style.background=`linear-gradient(to right,${color} 0%,${color} ${p2}%,var(--border) ${p2}%,var(--border) 100%)`;
-    if(showValue){const b=wrap.querySelector('.big');if(b)b.textContent=v;}
+    const v=+e.target.value,pp=Math.round(((v-min)/(max-min))*100);
+    inp.style.background=`linear-gradient(to right,${color} 0%,${color} ${pp}%,var(--border) ${pp}%,var(--border) 100%)`;
+    if(showCentered){const b=wrap.querySelector('.big');if(b)b.textContent=v;}
+    else if(title){const b=wrap.querySelector('.slider-val-badge');if(b)b.textContent=v;}
     onChange(v);
   });
   wrap.appendChild(inp);
@@ -219,20 +239,18 @@ function sliderEl(opts){
 function chipEl(label,active,onClick,activeColor){
   const b=el('button',{class:'chip'+(active?' on':'')});
   b.textContent=label;
-  if(active&&activeColor){b.style.background=activeColor;b.style.borderColor=activeColor;b.style.color='#fff';}
+  if(active&&activeColor){b.style.background=activeColor;b.style.borderColor='transparent';b.style.color='#fff';}
   b.addEventListener('click',onClick);
   return b;
 }
-function selChipEl(label,active,onClick,pinkActive=false){
-  const b=el('button',{class:'sel-chip'+(active?(pinkActive?' on-pink':' on'):'')});
+function selChipEl(label,active,onClick,pink=false){
+  const b=el('button',{class:'sel-chip'+(active?(pink?' on-pink':' on'):'')});
   b.textContent=label;b.addEventListener('click',onClick);return b;
 }
-
 function tagEl(text,bg,color){
   const t=el('span',{class:'tag'});t.textContent=text;
   if(bg)t.style.background=bg;if(color)t.style.color=color;return t;
 }
-
 function inputEl(type,value,onChange,attrs={}){
   const i=el('input',{...attrs,type,class:'input',value:value||''});
   i.addEventListener('input',e=>onChange(e.target.value));
@@ -240,16 +258,26 @@ function inputEl(type,value,onChange,attrs={}){
 }
 function textareaEl(value,onChange,placeholder=''){
   const t=el('textarea',{class:'input',placeholder,rows:4});
-  t.value=value||'';
-  t.addEventListener('input',e=>onChange(e.target.value));
-  return t;
+  t.value=value||'';t.addEventListener('input',e=>onChange(e.target.value));return t;
 }
 
-// ─── Cycle Ring SVG ───────────────────────────────────────────────────────────
-function cycleRing(progress,color,day,total){
-  const r=36,circ=2*Math.PI*r,dash=circ*(progress/100);
+// ─── Cycle Ring ───────────────────────────────────────────────────────────────
+function cycleRing(progress,color,day,total,size=120){
+  const r=(size/2)-8,cx=size/2,cy=size/2,circ=2*Math.PI*r;
+  const dash=circ*(Math.min(progress,100)/100);
   const wrap=div('ring-wrap');
-  wrap.innerHTML=`<svg width="90" height="90" viewBox="0 0 90 90"><circle cx="45" cy="45" r="${r}" fill="none" stroke="rgba(0,0,0,.07)" stroke-width="7"/><circle cx="45" cy="45" r="${r}" fill="none" stroke="${color}" stroke-width="7" stroke-dasharray="${dash} ${circ}" stroke-linecap="round" transform="rotate(-90 45 45)" style="transition:stroke-dasharray .8s ease"/></svg><div class="ring-label"><div style="font-size:20px;font-weight:700;color:var(--text)">${day}</div><div style="font-size:10px;color:var(--text-soft)">/${total}</div></div>`;
+  wrap.innerHTML=`
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <circle class="ring-track" cx="${cx}" cy="${cy}" r="${r}" stroke-width="8"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="8"
+        stroke-dasharray="${dash} ${circ}" stroke-linecap="round"
+        transform="rotate(-90 ${cx} ${cy})"
+        style="transition:stroke-dasharray 1s cubic-bezier(.34,1.56,.64,1);filter:drop-shadow(0 0 6px ${color}44)"/>
+    </svg>
+    <div class="ring-label">
+      <div class="ring-day" style="color:${color}">${day}</div>
+      <div class="ring-total">/ ${total}</div>
+    </div>`;
   return wrap;
 }
 
@@ -266,7 +294,7 @@ function fertilityStrip(pred){
     const bar=div('fert-bar');
     bar.style.height=h+'px';
     bar.style.background=isOv?'#10b981':score>70?'#34d399':score>30?'#a7f3d0':'var(--border)';
-    if(isToday)bar.style.boxShadow='0 0 8px #10b981';
+    if(isToday)bar.style.boxShadow='0 0 10px #10b981aa';
     const lbl=div('fert-lbl');
     lbl.textContent=parseDate(d).getDate();
     lbl.style.color=isToday?'#10b981':'var(--text-soft)';
@@ -279,18 +307,19 @@ function fertilityStrip(pred){
 }
 
 // ─── Metric Card ──────────────────────────────────────────────────────────────
-function metricCard(label,value,sub,accent,iconName){
+function metricCard(label,value,sub,color,bg,iconName){
   const c=div('metric-card');
-  c.style.borderTop=`3px solid ${accent}`;
-  c.innerHTML=icon(iconName,16,accent,2);
-  const v=div('metric-value');v.textContent=value;v.style.color=accent;
-  const l=div('metric-label');l.textContent=label;
-  const s=div('metric-sub');s.textContent=sub||'';
-  c.appendChild(v);c.appendChild(l);if(sub)c.appendChild(s);
+  c.style.background=bg;c.style.border='none';
+  const ico=div('metric-icon');ico.style.background=color+'22';
+  ico.innerHTML=icon(iconName,16,color,2);
+  const v=div('metric-value');v.textContent=value;v.style.color=color;
+  const l=div('metric-label');l.textContent=label;l.style.color=color;l.style.opacity='.6';
+  c.appendChild(ico);c.appendChild(v);c.appendChild(l);
+  if(sub){const s=div('metric-sub');s.textContent=sub;s.style.color=color;c.appendChild(s);}
   return c;
 }
 
-// ─── TABS ─────────────────────────────────────────────────────────────────────
+// ─── HOME ─────────────────────────────────────────────────────────────────────
 function renderHome(pred,periods,logs,alerts,settings,suppressOv){
   const today=todayStr();
   const todayLog=logs[today]||{};
@@ -298,9 +327,14 @@ function renderHome(pred,periods,logs,alerts,settings,suppressOv){
 
   if(!pred){
     const e=div('empty');
-    e.innerHTML=`<div style="width:72px;height:72px;border-radius:20px;background:linear-gradient(135deg,#fce7f3,#ede9fe);display:flex;align-items:center;justify-content:center">${icon('heart',36,'#ec4899',1.5)}</div>`;
-    const t=el('h2',{style:{color:'var(--text)',fontWeight:'700',fontSize:'22px'}});t.textContent='Welcome, '+settings.name;
-    e.appendChild(t);e.appendChild(mutedEl('Log your first period in the Calendar tab, or tap Log to track today.'));
+    const ico=div('empty-icon');ico.innerHTML=icon('heart',38,'#d946a8',1.5);
+    e.appendChild(ico);
+    const t=el('h2',{style:{color:'var(--text)',fontWeight:'800',fontSize:'22px',letterSpacing:'-.03em'}});t.textContent='Welcome, '+settings.name+'!';
+    const s=muted('Log your first period using the Calendar tab, or tap Log to track today.');
+    e.appendChild(t);e.appendChild(s);
+    const b=btn('btn-primary',icon('plus',16,'#fff',2.5)+' Log today',()=>{state.tab='log';render();});
+    b.style.cssText='margin-top:8px;max-width:200px';
+    e.appendChild(b);
     wrap.appendChild(e);return wrap;
   }
 
@@ -310,31 +344,29 @@ function renderHome(pred,periods,logs,alerts,settings,suppressOv){
   alerts.forEach(a=>{
     const banner=div('alert-banner '+(a.warn?'alert-banner-warn':'alert-banner-info'));
     const head=div('alert-banner-head');
-    head.innerHTML=icon('alert',14,a.warn?'#f472b6':'#a78bfa',2)+' ';
+    head.innerHTML=icon('alert',14,a.warn?'var(--primary)':'var(--primary-2)',2)+' ';
     const t=el('span');t.textContent=a.title;head.appendChild(t);
-    const x=el('button',{style:{background:'none',border:'none',cursor:'pointer',padding:'2px',marginLeft:'auto'}});
+    const x=el('button',{style:{background:'none',border:'none',cursor:'pointer',padding:'2px',marginLeft:'auto',flexShrink:'0'}});
     x.innerHTML=icon('close',14,'var(--text-soft)');
     x.onclick=()=>{state.dismissed.push(a.id);save('dismissed',state.dismissed);render();};
     head.appendChild(x);
-    const body=mutedEl(a.body);
-    banner.appendChild(head);banner.appendChild(body);
+    banner.appendChild(head);banner.appendChild(muted(a.body));
     wrap.appendChild(banner);
   });
 
   // Phase hero
-  const hero=div('phase-hero phase-'+pred.phase);hero.style.background=ph.bg;
-  hero.style.boxShadow=`0 4px 28px rgba(0,0,0,.08)`;
-  const top=div('',[],'',{display:'flex',gap:'16px',alignItems:'flex-start',marginBottom:'18px'});
-  top.style.cssText='display:flex;gap:16px;align-items:flex-start;margin-bottom:18px';
-  const left=div('');
-  const tag=div('phase-tag');tag.textContent=ph.name+' · Day '+pred.cycleDay;
-  tag.style.background=ph.color+'18';tag.style.color=ph.color;
-  const desc=el('p',{style:{fontSize:'14px',color:'var(--text-mid)',lineHeight:'1.65',margin:'0'}});
+  const hero=div(`phase-hero phase-${pred.phase}`);
+  const top=div('phase-hero-top');
+  const left=div('phase-hero-left');
+  const badge=div('phase-badge');
+  badge.innerHTML=`<span>${ph.emoji}</span><span style="color:${ph.color}">${ph.name} · Day ${pred.cycleDay}</span>`;
+  const desc=el('p',{style:{fontSize:'14px',color:'var(--text-mid)',lineHeight:'1.65',margin:'6px 0 0'}});
   desc.textContent=ph.desc;
-  left.appendChild(tag);left.appendChild(desc);
+  left.appendChild(badge);left.appendChild(desc);
   top.appendChild(left);
-  top.appendChild(cycleRing(Math.min((pred.cycleDay/pred.avgCycle)*100,100),ph.color,pred.cycleDay,pred.avgCycle));
+  top.appendChild(cycleRing(Math.min((pred.cycleDay/pred.avgCycle)*100,100),ph.color,pred.cycleDay,pred.avgCycle,120));
   hero.appendChild(top);
+
   const vitals=div('phase-vitals');
   [['Energy',ph.energy],['Libido',ph.libido],['Skin',ph.skin]].forEach(([l,v])=>{
     const vt=div('vital');
@@ -343,42 +375,60 @@ function renderHome(pred,periods,logs,alerts,settings,suppressOv){
     vt.appendChild(vl);vt.appendChild(vv);vitals.appendChild(vt);
   });
   hero.appendChild(vitals);
-  ph.tips.forEach(t=>{const tr=div('tip-row');tr.textContent=t;hero.appendChild(tr);});
+  ph.tips.forEach(t=>{
+    const tr=div('tip-row');
+    const dot=div('tip-dot');dot.style.background=ph.color;
+    tr.appendChild(dot);
+    const span=el('span');span.textContent=t;tr.appendChild(span);
+    hero.appendChild(tr);
+  });
   wrap.appendChild(hero);
 
-  // Metrics
+  // Metrics grid — tinted backgrounds
   const mg=div('metrics-grid');
   const fertScore=pred.fertilityMap[today]||0;
-  mg.appendChild(metricCard('Next Period',pred.daysLeft<=0?'Today':pred.daysLeft+'d',fmtShort(pred.nextStart),'#f43f5e','drop'));
-  mg.appendChild(suppressOv?metricCard('Method',settings.contraception,'adjusted','#a78bfa','pill'):metricCard('Ovulation',fmtShort(pred.ovulation),'predicted','#10b981','heart'));
-  mg.appendChild(metricCard('Avg Cycle',pred.avgCycle+'d','± '+Math.round(pred.cycleStd)+'d','#818cf8','refresh'));
-  mg.appendChild(suppressOv?metricCard('Regularity',pred.regularity!=null?pred.regularity+'%':'—','cycle score','#7c3aed','activity'):metricCard('Fertility',fertScore+'%','today',fertScore>70?'#10b981':fertScore>30?'#fb923c':'#94a3b8','activity'));
+  const dl=pred.daysLeft;
+  mg.appendChild(metricCard('Next Period',dl<=0?'Today':dl+'d',fmtShort(pred.nextStart),'#e879b8','#fdf2f8','drop'));
+  mg.appendChild(suppressOv
+    ? metricCard('Method',settings.contraception,'adjusted','#9333ea','#f5f3ff','pill')
+    : metricCard('Ovulation',fmtShort(pred.ovulation),'predicted','#10b981','#f0fdf8','heart'));
+  mg.appendChild(metricCard('Avg Cycle',pred.avgCycle+'d','± '+Math.round(pred.cycleStd)+'d','#8b5cf6','#f5f3ff','refresh'));
+  mg.appendChild(suppressOv
+    ? metricCard('Regularity',pred.regularity!=null?pred.regularity+'%':'—','cycle score','#6366f1','#eef2ff','activity')
+    : metricCard('Fertility',fertScore+'%','today',fertScore>70?'#10b981':fertScore>30?'#f59e0b':'#94a3b8',fertScore>70?'#f0fdf8':fertScore>30?'#fffbeb':'#f8fafc','spark'));
   wrap.appendChild(mg);
 
   // Fertility strip
   if(!suppressOv&&fertScore>0){
-    const fc=cardEl([cardHead('Fertility Forecast'),fertilityStrip(pred)]);
+    const fc=cardEl([sectionLabel('Fertility Forecast','🌿'),fertilityStrip(pred)]);
     wrap.appendChild(fc);
   }
 
   // Today log
-  const tc=cardEl([cardHead('Today')]);
+  const tc=cardEl([sectionLabel('Today','📋')]);
   if(todayLog.flow||todayLog.mood?.length||todayLog.symptoms?.length){
-    const tr=div('',[],'',{display:'flex',flexWrap:'wrap',gap:'4px'});tr.style.cssText='display:flex;flex-wrap:wrap;gap:4px';
-    if(todayLog.flow){const f=FLOWS.find(x=>x.id===todayLog.flow);tr.appendChild(tagEl(f?.label+' flow','#fce7f3','#db2777'));}
-    (todayLog.mood||[]).forEach(m=>tr.appendChild(tagEl(m,'var(--chip-on)','var(--chip-on-text)')));
-    (todayLog.symptoms||[]).forEach(s=>tr.appendChild(tagEl(s,'#fff0f6','#db2777')));
+    const tr=div('quick-log-strip');
+    if(todayLog.flow){const f=FLOWS.find(x=>x.id===todayLog.flow);if(f){const qt=div('quick-tag');qt.innerHTML=`💧 ${f.label} flow`;tr.appendChild(qt);}}
+    (todayLog.mood||[]).forEach(m=>{const mo=MOODS.find(x=>x.id===m);if(mo){const qt=div('quick-tag');qt.textContent=mo.emoji+' '+m;tr.appendChild(qt);}});
+    (todayLog.symptoms||[]).forEach(s=>{const sy=SYMPTOMS.find(x=>x.id===s);if(sy){const qt=div('quick-tag');qt.textContent=sy.emoji+' '+s;tr.appendChild(qt);}});
     tc.appendChild(tr);
-  } else tc.appendChild(mutedEl('Nothing logged today — tap Log to track how you feel.'));
+    const lb=btn('btn-ghost',icon('plus',14,'var(--primary)',2)+' Add more',()=>{state.tab='log';render();});
+    lb.style.cssText='margin-top:8px;padding:6px 0;font-size:13px;color:var(--primary);font-weight:600;display:flex;align-items:center;gap:4px';
+    tc.appendChild(lb);
+  } else {
+    tc.appendChild(muted('Nothing logged today yet.'));
+    const lb=btn('btn-primary',icon('plus',15,'#fff',2.5)+' Log how you feel',()=>{state.tab='log';render();});
+    lb.style.marginTop='12px';tc.appendChild(lb);
+  }
   wrap.appendChild(tc);
 
-  // History
+  // Recent periods
   if(periods.length){
-    const hc=cardEl([cardHead('Recent Periods')]);
-    [...periods].sort((a,b)=>b.start.localeCompare(a.start)).slice(0,3).forEach(p=>{
+    const hc=cardEl([sectionLabel('Recent Periods','🗓️')]);
+    [...periods].sort((a,b)=>b.start.localeCompare(a.start)).slice(0,3).forEach(pp=>{
       const row=div('hist-row');
-      const s=el('span');s.textContent=fmtFull(p.start);
-      const d=el('span',{class:'muted'});d.textContent=diffDays(p.start,p.end)+1+' days';
+      const s=el('span',{style:{fontWeight:'600',color:'var(--text)'}});s.textContent=fmtFull(pp.start);
+      const d=el('span',{class:'muted'});d.textContent=diffDays(pp.start,pp.end)+1+' days';
       row.appendChild(s);row.appendChild(d);hc.appendChild(row);
     });
     wrap.appendChild(hc);
@@ -386,6 +436,7 @@ function renderHome(pred,periods,logs,alerts,settings,suppressOv){
   return wrap;
 }
 
+// ─── CALENDAR ─────────────────────────────────────────────────────────────────
 function renderCalendar(periods,pred,logs){
   const now=new Date();
   let yr=now.getFullYear(),mo=now.getMonth(),sel=null;
@@ -394,14 +445,13 @@ function renderCalendar(periods,pred,logs){
   function rebuild(){
     wrap.innerHTML='';
     const card=cardEl([]);
-    // Month nav
     const nav=div('month-nav');
-    const prev=el('button',{class:'arrow-btn'});prev.innerHTML=icon('chevL',18,'var(--text-mid)');
-    prev.onclick=()=>{if(mo===0){yr--;mo=11;}else mo--;rebuild();};
-    const next=el('button',{class:'arrow-btn'});next.innerHTML=icon('chevR',18,'var(--text-mid)');
-    next.onclick=()=>{if(mo===11){yr++;mo=0;}else mo++;rebuild();};
-    const title=el('span',{style:{fontSize:'17px',fontWeight:'700',color:'var(--text)',letterSpacing:'-.01em'}});
-    title.textContent=new Date(yr,mo).toLocaleDateString('en-US',{month:'long',year:'numeric'});
+    const prev=el('button',{class:'arrow-btn'});prev.innerHTML=icon('chevL',16,'var(--text-mid)');
+    prev.onclick=()=>{mo===0?(yr--,mo=11):mo--;rebuild();};
+    const next=el('button',{class:'arrow-btn'});next.innerHTML=icon('chevR',16,'var(--text-mid)');
+    next.onclick=()=>{mo===11?(yr++,mo=0):mo++;rebuild();};
+    const title=el('span',{style:{fontSize:'17px',fontWeight:'800',color:'var(--text)',letterSpacing:'-.03em'}});
+    title.textContent=new Date(yr,mo).toLocaleDateString('en-GB',{month:'long',year:'numeric'});
     nav.appendChild(prev);nav.appendChild(title);nav.appendChild(next);card.appendChild(nav);
 
     const grid=div('cal-grid');
@@ -410,91 +460,83 @@ function renderCalendar(periods,pred,logs){
     const today=todayStr();
     for(let d=1;d<=daysInMonth(yr,mo);d++){
       const ds=isoDate(yr,mo,d);
-      const inPeriod=state.periods.some(p=>ds>=p.start&&ds<=p.end);
+      const inPeriod=periods.some(pp=>ds>=pp.start&&ds<=pp.end);
       let bg='transparent',color='var(--text)',border='transparent',dash=false;
-      if(inPeriod){bg='#f43f5e';color='#fff';}
+      if(inPeriod){bg='#e879b8';color='#fff';}
       else if(pred){
-        // Project 6 future cycles so predictions show on any forward month
-        let matched=false;
-        for(let c=0;c<6&&!matched;c++){
+        for(let c=0;c<6;c++){
           const offset=c*pred.avgCycle;
           const pStart=addDays(pred.nextStart,offset);
           const pEnd=addDays(pStart,pred.avgPeriod-1);
           const ov=addDays(pStart,-14);
-          const fStart=addDays(ov,-5);
-          const fEnd=addDays(ov,1);
-          const pms=addDays(pStart,-7);
-          // Skip cycles that are entirely in the past relative to viewed month
+          const fS=addDays(ov,-5);const fE=addDays(ov,1);const pms=addDays(pStart,-7);
           if(pEnd<isoDate(yr,mo,1))continue;
-          // Stop projecting if cycle starts beyond 6 months ahead
           if(pStart>isoDate(yr,mo,daysInMonth(yr,mo))&&c>0)break;
-          if(ds>=pStart&&ds<=pEnd){bg='rgba(244,63,94,.15)';color='#f43f5e';dash=true;matched=true;}
-          else if(ds===ov){bg='#10b981';color='#fff';matched=true;}
-          else if(ds>=fStart&&ds<=fEnd){bg='rgba(16,185,129,.15)';color='#10b981';matched=true;}
-          else if(ds>=pms&&ds<pStart){bg='rgba(251,146,60,.15)';color='#fb923c';matched=true;}
+          if(ds>=pStart&&ds<=pEnd){bg='rgba(232,121,184,.15)';color='#e879b8';dash=true;break;}
+          else if(ds===ov){bg='#10b981';color='#fff';break;}
+          else if(ds>=fS&&ds<=fE){bg='rgba(16,185,129,.14)';color='#10b981';break;}
+          else if(ds>=pms&&ds<pStart){bg='rgba(245,158,11,.14)';color='#d97706';break;}
         }
       }
       const cell=el('button',{class:'cal-day'});
       cell.textContent=d;
       cell.style.background=bg;cell.style.color=color;
-      cell.style.borderColor=dash?'rgba(244,63,94,.5)':border;
+      cell.style.borderColor=dash?'rgba(232,121,184,.5)':border;
       if(dash)cell.style.borderStyle='dashed';
-      if(ds===today)cell.style.outline='2px solid #a78bfa';
-      if(ds===sel)cell.style.outline='2.5px solid var(--text)';
-      if(logs[ds]){const dot=div('');dot.style.cssText='width:3px;height:3px;background:#a78bfa;border-radius:50%;position:absolute;bottom:3px';cell.style.position='relative';cell.appendChild(dot);}
+      if(ds===today){cell.style.outline='2.5px solid var(--primary-2)';cell.style.outlineOffset='1px';}
+      if(ds===sel){cell.style.outline='2.5px solid var(--text)';cell.style.outlineOffset='1px';}
+      if(logs[ds]){
+        const dot=div('');dot.style.cssText='width:4px;height:4px;background:var(--primary-2);border-radius:50%;position:absolute;bottom:3px';
+        cell.style.position='relative';cell.appendChild(dot);
+      }
       cell.onclick=()=>{sel=sel===ds?null:ds;rebuild();};
       grid.appendChild(cell);
     }
     card.appendChild(grid);
     wrap.appendChild(card);
 
-    // Legend
     const leg=div('legend');
-    [['#f43f5e','Period'],['rgba(244,63,94,.4)','Predicted',true],['#10b981','Ovulation'],['rgba(16,185,129,.4)','Fertile'],['rgba(251,146,60,.4)','PMS']].forEach(([c,l,d])=>{
+    [['#e879b8','Period'],['rgba(232,121,184,.4)','Predicted',true],['#10b981','Ovulation'],['rgba(16,185,129,.4)','Fertile'],['rgba(245,158,11,.4)','PMS']].forEach(([c,l,d])=>{
       const it=div('legend-item');
-      const dot=div('legend-dot');dot.style.background=c;if(d)dot.style.border='1.5px dashed #f43f5e';
+      const dot=div('legend-dot');dot.style.background=c;
+      if(d){dot.style.border='1.5px dashed #e879b8';dot.style.background='transparent';}
       it.appendChild(dot);const lt=el('span');lt.textContent=l;it.appendChild(lt);leg.appendChild(it);
     });
     wrap.appendChild(leg);
 
-    // Selected date
     if(sel){
-      const sp=state.periods.find(p=>sel>=p.start&&sel<=p.end);
+      const sp=periods.find(pp=>sel>=pp.start&&sel<=pp.end);
       const sc=cardEl([]);
-      const sh=cardHead(fmtFull(sel));sc.appendChild(sh);
+      const sh=sectionLabel(fmtFull(sel),'📍');sc.appendChild(sh);
       if(sp){
         if(sel>sp.start){
-          // Mid-period day: only let them trim the end — no full delete
-          const info=mutedEl('Day '+(diffDays(sp.start,sel)+1)+' of your period (started '+fmtShort(sp.start)+')');
-          sc.appendChild(info);
-          const gap=div('');gap.style.height='10px';sc.appendChild(gap);
-          const eb=btn('btn-secondary',icon('check',14,'#7c3aed',2)+' End period on this day',()=>{
-            state.periods=state.periods.map(p=>p.id===sp.id?{...p,end:sel}:p);
+          sc.appendChild(muted('Day '+(diffDays(sp.start,sel)+1)+' of your period (started '+fmtShort(sp.start)+')'));
+          sc.appendChild(div('',[]));// spacer
+          const eb=btn('btn-secondary',icon('check',14,'var(--text-mid)',2)+' End period on this day',()=>{
+            state.periods=state.periods.map(pp=>pp.id===sp.id?{...pp,end:sel}:pp);
             save('periods',state.periods);sel=null;rebuild();
           });sc.appendChild(eb);
         } else {
-          // Start day: show remove option
-          const info=mutedEl('Period start day — tap below to remove this entry entirely.');
-          sc.appendChild(info);
-          const gap=div('');gap.style.height='10px';sc.appendChild(gap);
-          const rb=btn('btn-danger',icon('trash',14,'#e11d48',2)+' Remove period entry',()=>{
-            state.periods=state.periods.filter(p=>p.id!==sp.id);
+          sc.appendChild(muted('Period start day — tap below to remove this entry entirely.'));
+          const rb=btn('btn-danger',icon('trash',14,'var(--danger-text)',2)+' Remove period entry',()=>{
+            state.periods=state.periods.filter(pp=>pp.id!==sp.id);
             save('periods',state.periods);sel=null;rebuild();
-          });sc.appendChild(rb);
+          });
+          rb.style.marginTop='10px';sc.appendChild(rb);
         }
       } else {
-        const ab=btn('btn-primary','Mark as period start',()=>{
+        const ab=btn('btn-primary',icon('drop',14,'#fff',2)+' Mark as period start',()=>{
           const end=addDays(sel,state.settings.periodLength-1);
-          state.periods=[...state.periods.filter(p=>Math.abs(diffDays(p.start,sel))>state.settings.periodLength),{start:sel,end,id:Date.now()}].sort((a,b)=>a.start.localeCompare(b.start));
+          state.periods=[...state.periods.filter(pp=>Math.abs(diffDays(pp.start,sel))>state.settings.periodLength),{start:sel,end,id:Date.now()}].sort((a,b)=>a.start.localeCompare(b.start));
           save('periods',state.periods);sel=null;rebuild();
         });sc.appendChild(ab);
       }
       if(logs[sel]){
-        const tg=div('');tg.style.cssText='display:flex;flex-wrap:wrap;gap:4px;margin-top:10px';
+        const tg=div('quick-log-strip');tg.style.marginTop='12px';
         const fl=FLOWS.find(f=>f.id===logs[sel].flow);
-        if(fl)tg.appendChild(tagEl(fl.label+' flow','#fce7f3','#db2777'));
-        (logs[sel].symptoms||[]).forEach(s=>tg.appendChild(tagEl(s,'#fff0f6','#db2777')));
-        (logs[sel].mood||[]).forEach(m=>tg.appendChild(tagEl(m,'var(--chip-on)','var(--chip-on-text)')));
+        if(fl){const qt=div('quick-tag');qt.innerHTML=`💧 ${fl.label} flow`;tg.appendChild(qt);}
+        (logs[sel].symptoms||[]).forEach(s=>{const sy=SYMPTOMS.find(x=>x.id===s);const qt=div('quick-tag');qt.textContent=(sy?.emoji||'•')+' '+s;tg.appendChild(qt);});
+        (logs[sel].mood||[]).forEach(m=>{const mo=MOODS.find(x=>x.id===m);const qt=div('quick-tag');qt.textContent=(mo?.emoji||'•')+' '+m;tg.appendChild(qt);});
         sc.appendChild(tg);
       }
       wrap.appendChild(sc);
@@ -504,131 +546,166 @@ function renderCalendar(periods,pred,logs){
   return wrap;
 }
 
+// ─── LOG ──────────────────────────────────────────────────────────────────────
 function renderLog(logs,notes){
-  let date=todayStr();let dirty=false;let savedTimeout=null;
-  const wrap=div('scroll');
-  wrap.style.paddingBottom='100px';
+  let date=todayStr(),dirty=false,savedTimeout=null;
+  const wrap=div('scroll');wrap.style.paddingBottom='110px';
 
   function rebuild(){
     wrap.innerHTML='';
     const log=logs[date]||{};
     const note=notes[date]||'';
     const pred=buildPredictions(state.periods,state.settings);
-    const isPeriod=state.periods.some(p=>date>=p.start&&date<=p.end);
-    const fertScore=pred?.fertilityMap[date]||0;
-    const phaseLabel=pred?(date>=pred.nextStart&&date<=pred.nextEnd?'Predicted period day':date===pred.ovulation?'Predicted ovulation':date>=pred.fertileStart&&date<=pred.fertileEnd?'Fertile window':date>=(pred.pmsStart||'')&&date<(pred.nextStart||'')?'PMS window':null):null;
+    const isPeriod=state.periods.some(pp=>date>=pp.start&&date<=pp.end);
 
     function setLog(field,val){const cur=logs[date]||{};logs[date]={...cur,[field]:val};state.logs=logs;save('logs',logs);dirty=true;rebuildSaveBar();}
     function toggleLog(field,item){const cur=logs[date]||{};const arr=cur[field]||[];logs[date]={...cur,[field]:arr.includes(item)?arr.filter(x=>x!==item):[...arr,item]};state.logs=logs;save('logs',logs);dirty=true;rebuildSaveBar();}
 
-    // Date
-    const dc=cardEl([]);dc.appendChild(cardHead('Date'));
-    const di=inputEl('date',date,v=>{date=v;dirty=false;rebuildSaveBar();rebuild();},{max:todayStr()});
+    // Date nav
+    const dc=cardEl([]);
+    const dn=div('date-nav');
+    const prev=div('date-nav-btn');prev.innerHTML=icon('chevL',15,'var(--text-mid)');
+    prev.onclick=()=>{date=addDays(date,-1);rebuild();};
+    const nxt=div('date-nav-btn');nxt.innerHTML=icon('chevR',15,'var(--text-mid)');
+    nxt.onclick=()=>{if(date<todayStr()){date=addDays(date,1);rebuild();}};
+    const dl=div('date-label');
+    const dld=div('date-label-day');dld.textContent=fmtDay(date);
+    const dlc=div('date-label-context');
+    const fertScore=pred?.fertilityMap[date]||0;
+    const phaseLabel=pred?(date>=pred.nextStart&&date<=pred.nextEnd?'Predicted period day':date===pred.ovulation?'Predicted ovulation ⭐':date>=pred.fertileStart&&date<=pred.fertileEnd?'Fertile window 🌿':date>=(pred.pmsStart||'')&&date<(pred.nextStart||'')?'PMS window 🌤️':''):null;
+    dlc.textContent=phaseLabel||(fertScore>0?`Fertility: ${fertScore}%`:'');
+    dlc.style.color=date===pred?.ovulation?'#10b981':date>=(pred?.fertileStart||'zzz')&&date<=(pred?.fertileEnd||'')?'#10b981':'var(--text-soft)';
+    dl.appendChild(dld);if(dlc.textContent)dl.appendChild(dlc);
+    dn.appendChild(prev);dn.appendChild(dl);dn.appendChild(nxt);
+    dc.appendChild(dn);
+    // Date input fallback
+    const di=inputEl('date',date,v=>{date=v;rebuild();},{max:todayStr()});
+    di.style.display='none';di.id='log-date-input';
     dc.appendChild(di);
-    if(phaseLabel){const ph=div('phase-hint');ph.textContent=phaseLabel;dc.appendChild(ph);}
-    if(fertScore>0){const fs=div('fert-score');fs.textContent='Fertility today: '+fertScore+'%';dc.appendChild(fs);}
     wrap.appendChild(dc);
 
-    // Period
-    const pc=cardEl([]);pc.appendChild(cardHead('Period'));
-    const pb=chipEl(isPeriod?'Period day logged':'Mark as period start',isPeriod,()=>{
-      if(!isPeriod){const end=addDays(date,state.settings.periodLength-1);state.periods=[...state.periods.filter(p=>Math.abs(diffDays(p.start,date))>state.settings.periodLength),{start:date,end,id:Date.now()}].sort((a,b)=>a.start.localeCompare(b.start));save('periods',state.periods);dirty=true;rebuildSaveBar();rebuild();}
-    },'#fce7f3');
-    if(isPeriod){pb.style.color='#db2777';pb.style.borderColor='#fda4af';}
-    pc.appendChild(pb);wrap.appendChild(pc);
+    // Period banner
+    const pb=div('period-banner'+(isPeriod?' active':''));
+    const pbi=div('period-banner-icon');
+    pbi.innerHTML=icon('drop',18,isPeriod?'#fff':'#e879b8',2);
+    const pbt=div('');
+    const pbtitle=el('div',{style:{fontSize:'14px',fontWeight:'700',color:isPeriod?'var(--primary)':'var(--text)'}});
+    pbtitle.textContent=isPeriod?'Period day logged':'Mark as period day';
+    const pbsub=el('div',{style:{fontSize:'12px',color:'var(--text-soft)',marginTop:'2px'}});
+    pbsub.textContent=isPeriod?'Tap to undo':'Start tracking this period';
+    pbt.appendChild(pbtitle);pbt.appendChild(pbsub);
+    pb.appendChild(pbi);pb.appendChild(pbt);
+    pb.onclick=()=>{
+      if(isPeriod){
+        const sp=state.periods.find(pp=>date>=pp.start&&date<=pp.end);
+        if(sp)state.periods=state.periods.filter(pp=>pp.id!==sp.id);
+      } else {
+        const end=addDays(date,state.settings.periodLength-1);
+        state.periods=[...state.periods.filter(pp=>Math.abs(diffDays(pp.start,date))>state.settings.periodLength),{start:date,end,id:Date.now()}].sort((a,b)=>a.start.localeCompare(b.start));
+      }
+      save('periods',state.periods);dirty=true;rebuildSaveBar();rebuild();
+    };
+    wrap.appendChild(pb);
 
     // Flow
-    const fc=cardEl([]);fc.style.borderTop='3px solid #fda4af';fc.appendChild(cardHead('Flow'));
-    const fr=div('chip-row');
+    const fc=cardEl([sectionLabel('Flow','💧')]);
+    const fr=div('flow-row');
     FLOWS.forEach(f=>{
-      const b=el('button',{class:'chip'+(log.flow===f.id?' on':'')});
-      b.textContent=f.label;
-      if(log.flow===f.id){b.style.background=f.color;b.style.borderColor=f.color;b.style.color='#fff';}
+      const b=div('flow-btn'+(log.flow===f.id?' on':''));
+      if(log.flow===f.id){b.style.background=`${f.color}22`;b.style.borderColor=f.color;}
+      const dot=div('flow-dot');dot.style.width=f.size+'px';dot.style.height=f.size+'px';
+      dot.style.color=f.color;dot.style.background=log.flow===f.id?f.color:f.color+'55';
+      const lbl=el('span',{style:{fontSize:'10px',color:log.flow===f.id?f.color:'var(--text-soft)',fontWeight:'600',lineHeight:'1.2'}});lbl.textContent=f.label;
+      b.appendChild(dot);b.appendChild(lbl);
       b.onclick=()=>{setLog('flow',log.flow===f.id?null:f.id);rebuild();};
       fr.appendChild(b);
     });
     fc.appendChild(fr);wrap.appendChild(fc);
 
-    // Pain
-    const painC=cardEl([]);painC.style.borderTop='3px solid #c4b5fd';painC.appendChild(cardHead('Pain Level'));
-    const painRow=div('');painRow.style.cssText='display:flex;align-items:center;gap:14px;margin-bottom:12px';
-    const pb2=div('pain-badge');
-    pb2.style.background=log.pain>=7?'#fce7f3':log.pain>=4?'#fff7ed':'#f0fdf8';
-    pb2.textContent=log.pain||'–';pb2.style.color=log.pain>=7?'#db2777':log.pain>=4?'#ea580c':'#059669';
-    const pl=mutedEl(log.pain>=8?'Severe':log.pain>=6?'Moderate–Severe':log.pain>=4?'Moderate':log.pain>=2?'Mild':'No pain selected');
-    painRow.appendChild(pb2);painRow.appendChild(pl);painC.appendChild(painRow);
-    painC.appendChild(sliderEl({min:0,max:10,value:log.pain||0,color:'#a78bfa',onChange:v=>{setLog('pain',v);painRow.querySelector('.pain-badge').textContent=v;painRow.querySelector('.pain-badge').style.background=v>=7?'#fce7f3':v>=4?'#fff7ed':'#f0fdf8';painRow.querySelector('.pain-badge').style.color=v>=7?'#db2777':v>=4?'#ea580c':'#059669';pl.textContent=v>=8?'Severe':v>=6?'Moderate–Severe':v>=4?'Moderate':v>=2?'Mild':'No pain selected';}}));
-    wrap.appendChild(painC);
-
     // Mood
-    const mc=cardEl([]);mc.style.borderTop='3px solid #c4b5fd';mc.appendChild(cardHead('Mood'));
-    const mg=div('sel-grid');
-    MOODS.forEach(m=>mg.appendChild(selChipEl(m,(log.mood||[]).includes(m),()=>{toggleLog('mood',m);rebuild();})));
+    const mc=cardEl([sectionLabel('How do you feel?','💭')]);
+    const mg=div('emoji-grid');
+    MOODS.forEach(m=>{
+      const b=div('emoji-chip'+((log.mood||[]).includes(m.id)?' on':''));
+      const em=div('em');em.textContent=m.emoji;
+      const lbl=el('span');lbl.textContent=m.id;
+      b.appendChild(em);b.appendChild(lbl);
+      b.onclick=()=>{toggleLog('mood',m.id);rebuild();};
+      mg.appendChild(b);
+    });
     mc.appendChild(mg);wrap.appendChild(mc);
 
     // Symptoms
-    const sc=cardEl([]);sc.style.borderTop='3px solid #fda4af';sc.appendChild(cardHead('Symptoms'));
-    const sg=div('sel-grid');
-    SYMPTOMS.forEach(s=>sg.appendChild(selChipEl(s,(log.symptoms||[]).includes(s),()=>{toggleLog('symptoms',s);rebuild();},true)));
+    const sc=cardEl([sectionLabel('Symptoms','🩺')]);
+    const sg=div('emoji-grid');
+    SYMPTOMS.forEach(s=>{
+      const b=div('emoji-chip'+((log.symptoms||[]).includes(s.id)?' on-pink':''));
+      const em=div('em');em.textContent=s.emoji;
+      const lbl=el('span');lbl.textContent=s.id;
+      b.appendChild(em);b.appendChild(lbl);
+      b.onclick=()=>{toggleLog('symptoms',s.id);rebuild();};
+      sg.appendChild(b);
+    });
     sc.appendChild(sg);wrap.appendChild(sc);
 
-    // Discharge
-    const ddc=cardEl([]);ddc.appendChild(cardHead('Discharge'));
-    const ddr=div('chip-row');
-    DISCHARGE.forEach(d=>ddr.appendChild(chipEl(d,log.discharge===d,()=>{setLog('discharge',log.discharge===d?null:d);rebuild();})));
-    ddc.appendChild(ddr);wrap.appendChild(ddc);
-
-    // BBT
-    const bc=cardEl([]);bc.appendChild(cardHead('Basal Body Temperature'));
-    const br=div('');br.style.cssText='display:flex;align-items:center;gap:12px';
-    const bw=div('bbt-wrap');
-    const bi=el('input',{class:'bbt-input',type:'number',step:'0.01',min:'35',max:'40.5',placeholder:'36.50',value:log.temp||''});
-    bi.oninput=e=>{setLog('temp',e.target.value);};
-    const bu=div('bbt-unit');bu.textContent='°C';
-    bw.appendChild(bi);bw.appendChild(bu);
-    const bm=mutedEl('Measure immediately after waking, before getting up.');bm.style.flex='1';bm.style.fontSize='12px';
-    br.appendChild(bw);br.appendChild(bm);bc.appendChild(br);wrap.appendChild(bc);
-
-    // Water
-    const wc=cardEl([]);wc.style.borderTop='3px solid #7dd3fc';wc.appendChild(cardHead('Water Intake'));
-    const wr=div('');wr.style.cssText='display:flex;align-items:center;gap:14px;margin-bottom:12px';
-    const wb=div('water-badge');wb.id='water-badge';wb.textContent=log.water||0;
-    const wm=mutedEl((log.water||0)+' glass'+((log.water||0)!==1?'es':'')+' today');wm.id='water-muted';
-    wr.appendChild(wb);wr.appendChild(wm);wc.appendChild(wr);
-    wc.appendChild(sliderEl({min:0,max:12,value:log.water||0,color:'#38bdf8',onChange:v=>{setLog('water',v);const badge=wrap.querySelector('#water-badge');if(badge)badge.textContent=v;const mut=wrap.querySelector('#water-muted');if(mut)mut.textContent=v+' glass'+(v!==1?'es':'')+' today';}}));
-    wrap.appendChild(wc);
+    // Pain
+    const pc=cardEl([sectionLabel('Pain Level','😣')]);
+    const painVal=log.pain||0;
+    const painDesc=painVal>=8?'Severe 😰':painVal>=6?'Moderate–Severe':painVal>=4?'Moderate 😕':painVal>=2?'Mild 🙂':'No pain 😊';
+    pc.appendChild(sliderEl({min:0,max:10,value:painVal,color:'#8b5cf6',title:'Pain',unit:'',onChange:v=>{setLog('pain',v);const b=pc.querySelector('.slider-val-badge');if(b)b.textContent=v;}}));
+    const pd=muted(painDesc);pd.id='pain-desc';pd.style.marginTop='8px';pd.style.textAlign='center';pc.appendChild(pd);
+    wrap.appendChild(pc);
 
     // Sleep
-    const slc=cardEl([]);slc.appendChild(cardHead('Sleep'));
-    const slr=div('chip-row');slr.style.marginBottom='12px';
+    const slc=cardEl([sectionLabel('Sleep','🌙')]);
+    const slr=div('chip-row');slr.style.marginBottom='14px';
     SLEEP_Q.forEach(q=>slr.appendChild(chipEl(q,log.sleep===q,()=>{setLog('sleep',log.sleep===q?null:q);rebuild();})));
     slc.appendChild(slr);
-    const shr=div('');shr.style.cssText='display:flex;align-items:center;gap:14px;margin-bottom:12px';
-    const shb=div('sleep-badge');shb.id='sleep-badge';shb.textContent=log.sleepHours!=null?log.sleepHours:7;
-    const shm=mutedEl((log.sleepHours!=null?log.sleepHours:7)+' hour'+((log.sleepHours!=null?log.sleepHours:7)!==1?'s':'')+' of sleep');shm.id='sleep-muted';shm.style.fontSize='12px';
-    shr.appendChild(shb);shr.appendChild(shm);slc.appendChild(shr);
-    slc.appendChild(sliderEl({min:0,max:13,value:log.sleepHours!=null?log.sleepHours:7,color:'#818cf8',unit:'h',onChange:v=>{setLog('sleepHours',v);const badge=wrap.querySelector('#sleep-badge');if(badge)badge.textContent=v;const mut=wrap.querySelector('#sleep-muted');if(mut)mut.textContent=v+' hour'+(v!==1?'s':'')+' of sleep';}}));
+    const shVal=log.sleepHours!=null?log.sleepHours:7;
+    slc.appendChild(sliderEl({min:0,max:13,value:shVal,color:'#818cf8',title:'Hours slept',unit:'h',onChange:v=>{setLog('sleepHours',v);}}));
     wrap.appendChild(slc);
 
+    // Water
+    const wc=cardEl([sectionLabel('Water','💧')]);
+    wc.appendChild(sliderEl({min:0,max:12,value:log.water||0,color:'#38bdf8',title:'Glasses today',unit:'',onChange:v=>{setLog('water',v);}}));
+    wrap.appendChild(wc);
+
     // Exercise
-    const ec=cardEl([]);ec.appendChild(cardHead('Exercise'));
+    const ec=cardEl([sectionLabel('Exercise','🏃')]);
     const er=div('chip-row');
     EXERCISE.forEach(ex=>{
       const b=chipEl(ex,log.exercise===ex,()=>{setLog('exercise',log.exercise===ex?null:ex);rebuild();});
-      if(log.exercise===ex){b.style.background='#ecfdf5';b.style.borderColor='#6ee7b7';b.style.color='#059669';}
+      if(log.exercise===ex){b.style.background='rgba(16,185,129,.12)';b.style.borderColor='#6ee7b7';b.style.color='#059669';}
       er.appendChild(b);
     });
     ec.appendChild(er);wrap.appendChild(ec);
 
     // Intimacy
-    const ic=cardEl([]);ic.appendChild(cardHead('Intimacy'));
+    const ic=cardEl([sectionLabel('Intimacy','💕')]);
     const ir=div('chip-row');
     SEX.forEach(s=>ir.appendChild(chipEl(s,log.sex===s,()=>{setLog('sex',log.sex===s?null:s);rebuild();})));
     ic.appendChild(ir);wrap.appendChild(ic);
 
+    // Discharge
+    const ddc=cardEl([sectionLabel('Discharge','🔬')]);
+    const ddr=div('sel-grid');
+    DISCHARGE.forEach(d=>ddr.appendChild(selChipEl(d,log.discharge===d,()=>{setLog('discharge',log.discharge===d?null:d);rebuild();})));
+    ddc.appendChild(ddr);wrap.appendChild(ddc);
+
+    // BBT
+    const bc=cardEl([sectionLabel('Temperature (BBT)','🌡️')]);
+    const br=div('');br.style.cssText='display:flex;align-items:center;gap:14px';
+    const bw=div('bbt-wrap');
+    const bi=el('input',{class:'bbt-input',type:'number',step:'0.01',min:'35',max:'40.5',placeholder:'36.50',value:log.temp||''});
+    bi.oninput=e=>{setLog('temp',e.target.value);};
+    const bu=div('bbt-unit');bu.textContent='°C';
+    bw.appendChild(bi);bw.appendChild(bu);
+    const bm=muted('Measure immediately after waking, before getting up.');bm.style.flex='1';bm.style.fontSize='12px';
+    br.appendChild(bw);br.appendChild(bm);bc.appendChild(br);wrap.appendChild(bc);
+
     // Journal
-    const jc=cardEl([]);jc.appendChild(cardHead('Journal'));
-    const ta=textareaEl(note,v=>{notes[date]=v;state.notes=notes;save('notes',notes);dirty=true;rebuildSaveBar();},);
+    const jc=cardEl([sectionLabel('Journal','✍️')]);
+    const ta=textareaEl(note,v=>{notes[date]=v;state.notes=notes;save('notes',notes);dirty=true;rebuildSaveBar();},'How are you feeling today?');
     jc.appendChild(ta);wrap.appendChild(jc);
   }
 
@@ -637,244 +714,322 @@ function renderLog(logs,notes){
   let isSaved=false;
   function rebuildSaveBar(){
     const sb=saveBar.querySelector('.save-btn')||el('button',{class:'save-btn'});
-    if(isSaved){sb.style.background='linear-gradient(135deg,#10b981,#34d399)';sb.style.color='#fff';sb.style.border='none';sb.style.boxShadow='0 4px 16px rgba(16,185,129,.3)';sb.innerHTML=icon('check',16,'#fff',2)+' Saved';}
-    else if(dirty){sb.style.background='linear-gradient(135deg,#ec4899,#f472b6)';sb.style.color='#fff';sb.style.border='none';sb.style.boxShadow='0 4px 16px rgba(236,72,153,.25)';sb.innerHTML=icon('save',16,'#fff',2)+' Save Entry';}
-    else{sb.style.background='var(--surface)';sb.style.color='var(--text-soft)';sb.style.border='1.5px solid var(--border)';sb.style.boxShadow='none';sb.innerHTML=icon('save',16,'var(--text-soft)',2)+' Save Entry';}
+    if(isSaved){sb.style.cssText='width:100%;background:linear-gradient(135deg,#10b981,#34d399);color:#fff;border:none;padding:14px 22px;border-radius:15px;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 4px 18px rgba(16,185,129,.3);font-family:inherit;cursor:pointer';sb.innerHTML=icon('check',16,'#fff',2.5)+' Saved!';}
+    else if(dirty){sb.style.cssText='width:100%;background:linear-gradient(135deg,#ec4899,#a855f7);color:#fff;border:none;padding:14px 22px;border-radius:15px;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 4px 18px rgba(217,70,168,.28);font-family:inherit;cursor:pointer';sb.innerHTML=icon('save',16,'#fff',2)+' Save Entry';}
+    else{sb.style.cssText='width:100%;background:var(--surface);color:var(--text-soft);border:1.5px solid var(--border);padding:14px 22px;border-radius:15px;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:9px;font-family:inherit;cursor:pointer';sb.innerHTML=icon('save',16,'var(--text-soft)',2)+' Save Entry';}
     sb.onclick=()=>{isSaved=true;dirty=false;rebuildSaveBar();if(savedTimeout)clearTimeout(savedTimeout);savedTimeout=setTimeout(()=>{isSaved=false;rebuildSaveBar();},2500);};
     saveBar.innerHTML='';saveBar.appendChild(sb);
   }
   rebuildSaveBar();
   document.getElementById('app').appendChild(saveBar);
-
   rebuild();
   return wrap;
 }
 
-function renderInsights(periods,logs,pred,settings){
+// ─── INSIGHTS + HEALTH ────────────────────────────────────────────────────────
+function renderInsights(periods,logs,pred,settings,alerts,insights){
   const wrap=div('scroll');
-  if(!periods.length){const e=div('empty');e.innerHTML=icon('chart',40,'var(--text-soft)',1.5);e.appendChild(mutedEl('Log at least one period to unlock insights.'));wrap.appendChild(e);return wrap;}
+
+  // Health alerts first (if any)
+  if(alerts.length){
+    alerts.forEach(a=>{
+      const banner=div('alert-banner '+(a.warn?'alert-banner-warn':'alert-banner-info'));
+      const head=div('alert-banner-head');
+      head.innerHTML=icon('alert',14,'var(--primary)',2)+' ';
+      const t=el('span');t.textContent=a.title;head.appendChild(t);
+      const x=el('button',{style:{background:'none',border:'none',cursor:'pointer',padding:'2px',marginLeft:'auto'}});
+      x.innerHTML=icon('close',14,'var(--text-soft)');
+      x.onclick=()=>{state.dismissed.push(a.id);save('dismissed',state.dismissed);render();};
+      head.appendChild(x);
+      banner.appendChild(head);banner.appendChild(muted(a.body));
+      wrap.appendChild(banner);
+    });
+  }
+
+  if(!periods.length){
+    const e=div('empty');
+    const ico=div('empty-icon');ico.innerHTML=icon('chart',36,'var(--primary)',1.5);
+    e.appendChild(ico);e.appendChild(muted('Log at least one period to unlock your cycle insights.'));
+    wrap.appendChild(e);return wrap;
+  }
+
   const gaps=pred?.gaps||[];
   const allLogs=Object.entries(logs);
-  const sf={};SYMPTOMS.forEach(s=>sf[s]=0);allLogs.forEach(([,l])=>(l.symptoms||[]).forEach(s=>sf[s]=(sf[s]||0)+1));
-  const topS=Object.entries(sf).sort((a,b)=>b[1]-a[1]).filter(([,v])=>v>0).slice(0,6);
-  const mf={};MOODS.forEach(m=>mf[m]=0);allLogs.forEach(([,l])=>(l.mood||[]).forEach(m=>mf[m]=(mf[m]||0)+1));
-  const topM=Object.entries(mf).sort((a,b)=>b[1]-a[1]).filter(([,v])=>v>0).slice(0,6);
-  const maxS=Math.max(...topS.map(([,v])=>v),1),maxM=Math.max(...topM.map(([,v])=>v),1);
-  const bbtData=allLogs.filter(([,l])=>l.temp&&+l.temp>35&&+l.temp<40.5).sort((a,b)=>a[0].localeCompare(b[0])).slice(-14);
-  const painVals=allLogs.map(([,l])=>l.pain).filter(Boolean);
-  const avgPain=painVals.length?Math.round(painVals.reduce((a,b)=>a+b,0)/painVals.length*10)/10:null;
-  const mg=div('metrics-grid');
-  mg.appendChild(metricCard('Avg Cycle',(pred?.avgCycle||settings.cycleLength)+'d',pred?'± '+Math.round(pred.cycleStd)+'d':'','#818cf8','refresh'));
-  mg.appendChild(metricCard('Avg Period',(pred?.avgPeriod||settings.periodLength)+'d','','#f43f5e','drop'));
-  mg.appendChild(metricCard('Cycles',periods.length,'logged','#10b981','calendar'));
-  const reg=pred?.regularity;
-  mg.appendChild(metricCard('Regularity',reg!=null?reg+'%':'—',reg>=80?'Regular':reg>=60?'Moderate':'Irregular',reg>=80?'#10b981':reg>=60?'#fb923c':'#f43f5e','activity'));
-  wrap.appendChild(mg);
-  if(gaps.length){
-    const bc=cardEl([cardHead('Cycle Length History')]);
-    const bch=div('bar-chart');
-    gaps.forEach(g=>{const col=div('bar-col');const fill=div('bar-fill');fill.style.height=Math.min(100,Math.round((g/50)*100))+'%';fill.style.background=g<21||g>35?'#f43f5e':g<24||g>32?'#fb923c':'#818cf8';const lbl=div('bar-lbl');lbl.textContent=g;col.appendChild(fill);col.appendChild(lbl);bch.appendChild(col);});
-    bc.appendChild(bch);bc.appendChild(mutedEl('Days between cycles. Normal range: 21–35 days'));wrap.appendChild(bc);
-  }
-  if(bbtData.length>2){
-    const btc=cardEl([cardHead('Body Temperature (BBT)')]);
-    const temps=bbtData.map(([,l])=>+l.temp);
-    const mn=Math.min(...temps)-.2,mx=Math.max(...temps)+.2,w=260,h=70;
-    const pts=temps.map((t,i)=>`${Math.round((i/(temps.length-1))*w)},${Math.round(h-((t-mn)/(mx-mn))*h)}`).join(' ');
-    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-    svg.setAttribute('viewBox',`0 0 ${w} ${h+20}`);svg.setAttribute('width',w);svg.setAttribute('height',h+20);svg.style.overflow='visible';
-    svg.innerHTML=`<polyline points="${pts}" fill="none" stroke="#818cf8" stroke-width="2" stroke-linejoin="round"/>${temps.map((t,i)=>`<circle cx="${Math.round((i/(temps.length-1))*w)}" cy="${Math.round(h-((t-mn)/(mx-mn))*h)}" r="3" fill="#818cf8"/>`).join('')}<line x1="0" y1="${h}" x2="${w}" y2="${h}" stroke="var(--border)" stroke-width="1"/>`;
-    btc.appendChild(svg);btc.appendChild(mutedEl('A rise of ~0.2–0.5°C after ovulation is normal'));wrap.appendChild(btc);
-  }
-  if(avgPain){
-    const pc=cardEl([cardHead('Average Pain')]);
-    const pr=div('');pr.style.cssText='display:flex;align-items:center;gap:14px';
-    const pb=div('pain-badge');pb.style.background=avgPain>=7?'#fce7f3':avgPain>=4?'#fff7ed':'#f0fdf8';pb.style.color=avgPain>=7?'#db2777':avgPain>=4?'#ea580c':'#059669';pb.textContent=avgPain;
-    pr.appendChild(pb);pr.appendChild(mutedEl('out of 10 across '+painVals.length+' logged days'));pc.appendChild(pr);wrap.appendChild(pc);
-  }
-  if(topS.length){const sc=cardEl([cardHead('Symptom Frequency')]);topS.forEach(([s,c])=>{const r=div('ins-row');const l=div('ins-label');l.textContent=s;const t=div('ins-track');const b=div('ins-bar');b.style.width=Math.round((c/maxS)*100)+'%';b.style.background='#f43f5e';t.appendChild(b);const ct=div('ins-count');ct.textContent=c;r.appendChild(l);r.appendChild(t);r.appendChild(ct);sc.appendChild(r);});wrap.appendChild(sc);}
-  if(topM.length){const mc=cardEl([cardHead('Mood Frequency')]);topM.forEach(([m,c])=>{const r=div('ins-row');const l=div('ins-label');l.textContent=m;const t=div('ins-track');const b=div('ins-bar');b.style.width=Math.round((c/maxM)*100)+'%';b.style.background='#818cf8';t.appendChild(b);const ct=div('ins-count');ct.textContent=c;r.appendChild(l);r.appendChild(t);r.appendChild(ct);mc.appendChild(r);});wrap.appendChild(mc);}
-  if(pred){
-    const pc=cardEl([cardHead('Upcoming Predictions')]);
-    const conf=pred.confidence;
-    const cm=mutedEl('Confidence: '+conf.charAt(0).toUpperCase()+conf.slice(1)+' ('+pred.totalCycles+' cycle'+(pred.totalCycles!==1?'s':'')+' logged)');
-    cm.style.marginBottom='12px';cm.querySelector&&null;
-    const confSpan=el('span');confSpan.textContent=conf.charAt(0).toUpperCase()+conf.slice(1);confSpan.style.color=conf==='high'?'#10b981':conf==='medium'?'#fb923c':'#94a3b8';confSpan.style.fontWeight='700';
-    pc.appendChild(cm);
-    for(let i=0;i<3;i++){const st=addDays(pred.nextStart,i*pred.avgCycle),en=addDays(st,pred.avgPeriod-1),ov=addDays(st,-14);const r=div('');r.style.cssText='display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)';const dot=div('pred-dot');const info=div('');const ttl=el('div',{style:{fontWeight:'700',color:'var(--text)',marginBottom:'4px',fontSize:'14px'}});ttl.textContent='Period: '+fmtShort(st)+' – '+fmtShort(en);const sub=mutedEl('Ovulation: ~'+fmtShort(ov));sub.style.fontSize='12px';info.appendChild(ttl);info.appendChild(sub);r.appendChild(dot);r.appendChild(info);pc.appendChild(r);}
-    wrap.appendChild(pc);
-  }
-  return wrap;
-}
 
-function renderHealth(alerts,insights,settings){
-  const wrap=div('scroll');
-  const intro=cardEl([]);intro.classList.add('card-health-intro');
-  const ihead=div('');ihead.style.cssText='display:flex;align-items:center;gap:10px;margin-bottom:10px';
-  ihead.innerHTML=icon('activity',18,'#10b981',2);const iht=cardHead('Health Intelligence');ihead.appendChild(iht);
-  intro.appendChild(ihead);intro.appendChild(mutedEl('Bloom analyses your cycle data and adjusts insights based on your contraceptive method. This is not medical diagnosis — always consult a doctor for concerns.'));
-  if(settings.contraception&&settings.contraception!=='None'){const badge=div('contra-badge');badge.innerHTML=icon('pill',12,'#059669',2)+' Tracking adjusted for: '+settings.contraception;intro.appendChild(badge);}
-  wrap.appendChild(intro);
-  if(!alerts.length&&!insights.length){const e=div('empty');e.innerHTML=icon('heart',36,'#10b981',1.5);e.appendChild(mutedEl('No alerts right now. Keep logging to build your health picture.'));wrap.appendChild(e);}
-  if(alerts.length){
-    const ac=cardEl([cardHead('Alerts')]);
-    alerts.forEach(a=>{
-      const hc=div('health-card '+(a.warn?'health-card-warn':'health-card-info'));
-      const ht=div('');ht.style.cssText='display:flex;align-items:flex-start;gap:10px;margin-bottom:8px';
-      const dot=div('health-dot');dot.style.background=a.warn?'#f472b6':'#a78bfa';
-      const title=el('b',{style:{flex:'1',color:'var(--text)',fontSize:'14px'}});title.textContent=a.title;
-      const xb=el('button',{style:{background:'none',border:'none',cursor:'pointer',padding:'2px'}});xb.innerHTML=icon('close',14,'var(--text-soft)');xb.onclick=()=>{state.dismissed.push(a.id);save('dismissed',state.dismissed);render();};
-      ht.appendChild(dot);ht.appendChild(title);ht.appendChild(xb);
-      const body=mutedEl(a.body);body.style.paddingLeft='18px';
-      hc.appendChild(ht);hc.appendChild(body);ac.appendChild(hc);
+  // Metrics
+  const mg=div('metrics-grid');
+  mg.appendChild(metricCard('Avg Cycle',(pred?.avgCycle||settings.cycleLength)+'d',pred?'± '+Math.round(pred.cycleStd)+'d':'','#8b5cf6','#f5f3ff','refresh'));
+  mg.appendChild(metricCard('Avg Period',(pred?.avgPeriod||settings.periodLength)+'d','','#e879b8','#fdf2f8','drop'));
+  mg.appendChild(metricCard('Cycles',periods.length,'logged','#10b981','#f0fdf8','calendar'));
+  const reg=pred?.regularity;
+  mg.appendChild(metricCard('Regularity',reg!=null?reg+'%':'—',reg>=80?'Regular':reg>=60?'Moderate':'Irregular',reg>=80?'#10b981':reg>=60?'#f59e0b':'#f43f5e',reg>=80?'#f0fdf8':reg>=60?'#fffbeb':'#fff1f2','activity'));
+  wrap.appendChild(mg);
+
+  // Cycle history chart
+  if(gaps.length){
+    const bc=cardEl([sectionLabel('Cycle History','📊')]);
+    const bch=div('bar-chart');
+    gaps.forEach(g=>{
+      const col=div('bar-col');
+      const fill=div('bar-fill');
+      fill.style.height=Math.min(100,Math.round((g/50)*100))+'%';
+      fill.style.background=g<21||g>35?'#f43f5e':g<24||g>32?'#f59e0b':'#8b5cf6';
+      fill.style.borderRadius='5px 5px 0 0';
+      const lbl=div('bar-lbl');lbl.textContent=g;
+      col.appendChild(fill);col.appendChild(lbl);bch.appendChild(col);
     });
-    wrap.appendChild(ac);
+    bc.appendChild(bch);bc.appendChild(muted('Days between cycles. Normal range: 21–35 days'));
+    wrap.appendChild(bc);
   }
-  if(insights.length){
-    const ic=cardEl([cardHead('Insights')]);
-    insights.forEach(ins=>{
-      const hc=div('health-card');hc.style.background='var(--surface)';
+
+  // Symptom frequency
+  const sf={};SYMPTOMS.forEach(s=>sf[s.id]=0);allLogs.forEach(([,l])=>(l.symptoms||[]).forEach(s=>sf[s]=(sf[s]||0)+1));
+  const topS=Object.entries(sf).sort((a,b)=>b[1]-a[1]).filter(([,v])=>v>0).slice(0,6);
+  const maxS=Math.max(...topS.map(([,v])=>v),1);
+  if(topS.length){
+    const sc=cardEl([sectionLabel('Symptom Frequency','🩺')]);
+    topS.forEach(([s,c])=>{
+      const sy=SYMPTOMS.find(x=>x.id===s);
+      const r=div('ins-row');
+      const l=div('ins-label');l.textContent=(sy?.emoji||'•')+' '+s;
+      const t=div('ins-track');const b=div('ins-bar');b.style.width=Math.round((c/maxS)*100)+'%';b.style.background='linear-gradient(90deg,#e879b8,#f472b6)';
+      t.appendChild(b);
+      const ct=div('ins-count');ct.textContent=c;
+      r.appendChild(l);r.appendChild(t);r.appendChild(ct);sc.appendChild(r);
+    });
+    wrap.appendChild(sc);
+  }
+
+  // Mood frequency
+  const mf={};MOODS.forEach(m=>mf[m.id]=0);allLogs.forEach(([,l])=>(l.mood||[]).forEach(m=>mf[m]=(mf[m]||0)+1));
+  const topM=Object.entries(mf).sort((a,b)=>b[1]-a[1]).filter(([,v])=>v>0).slice(0,6);
+  const maxM=Math.max(...topM.map(([,v])=>v),1);
+  if(topM.length){
+    const mc=cardEl([sectionLabel('Mood Frequency','💭')]);
+    topM.forEach(([m,c])=>{
+      const mo=MOODS.find(x=>x.id===m);
+      const r=div('ins-row');
+      const l=div('ins-label');l.textContent=(mo?.emoji||'•')+' '+m;
+      const t=div('ins-track');const b=div('ins-bar');b.style.width=Math.round((c/maxM)*100)+'%';b.style.background='linear-gradient(90deg,#8b5cf6,#a78bfa)';
+      t.appendChild(b);
+      const ct=div('ins-count');ct.textContent=c;
+      r.appendChild(l);r.appendChild(t);r.appendChild(ct);mc.appendChild(r);
+    });
+    wrap.appendChild(mc);
+  }
+
+  // Health insights
+  const healthInsights=insights.filter(i=>!['healthy','regular'].includes(i.id));
+  if(healthInsights.length){
+    const ic=cardEl([sectionLabel('Health Insights','💡')]);
+    healthInsights.forEach(ins=>{
+      const hc=div('health-card health-card-info');
       const ht=div('');ht.style.cssText='display:flex;align-items:flex-start;gap:10px;margin-bottom:8px';
-      const dot=div('health-dot');dot.style.background='#a78bfa';
+      const dot=div('health-dot');dot.style.background='var(--primary-2)';
       const title=el('b',{style:{flex:'1',color:'var(--text)',fontSize:'14px'}});title.textContent=ins.title;
       ht.appendChild(dot);ht.appendChild(title);
-      const body=mutedEl(ins.body);body.style.paddingLeft='18px';
+      const body=muted(ins.body);body.style.paddingLeft='18px';
       hc.appendChild(ht);hc.appendChild(body);ic.appendChild(hc);
     });
     wrap.appendChild(ic);
   }
-  const rc=cardEl([cardHead('When to See a Doctor')]);
-  ['Periods lasting more than 7 days','Soaking through protection every hour for several hours','Severe pain that prevents daily activities','Bleeding between periods regularly','No period for 90+ days and not pregnant','A sudden change in your usual cycle pattern'].forEach(txt=>{
-    const r=div('');r.style.cssText='padding:8px 0;font-size:13px;color:var(--text-mid);border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start';
-    const dot=div('');dot.style.cssText='width:6px;height:6px;border-radius:50%;background:#f472b6;margin-top:5px;flex-shrink:0';
+
+  // BBT chart
+  const bbtData=allLogs.filter(([,l])=>l.temp&&+l.temp>35&&+l.temp<40.5).sort((a,b)=>a[0].localeCompare(b[0])).slice(-14);
+  if(bbtData.length>2){
+    const btc=cardEl([sectionLabel('Body Temperature (BBT)','🌡️')]);
+    const temps=bbtData.map(([,l])=>+l.temp);
+    const mn=Math.min(...temps)-.2,mx=Math.max(...temps)+.2,w=300,h=70;
+    const pts=temps.map((t,i)=>`${Math.round((i/(temps.length-1))*w)},${Math.round(h-((t-mn)/(mx-mn))*h)}`).join(' ');
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('viewBox',`0 0 ${w} ${h+20}`);svg.setAttribute('width','100%');svg.setAttribute('height',h+20);svg.style.overflow='visible';
+    svg.innerHTML=`<polyline points="${pts}" fill="none" stroke="#8b5cf6" stroke-width="2.5" stroke-linejoin="round"/>${temps.map((t,i)=>`<circle cx="${Math.round((i/(temps.length-1))*w)}" cy="${Math.round(h-((t-mn)/(mx-mn))*h)}" r="3.5" fill="#8b5cf6"/>`).join('')}<line x1="0" y1="${h}" x2="${w}" y2="${h}" stroke="var(--border)" stroke-width="1"/>`;
+    btc.appendChild(svg);btc.appendChild(muted('A rise of ~0.2–0.5°C after ovulation is normal'));
+    wrap.appendChild(btc);
+  }
+
+  // Upcoming predictions
+  if(pred){
+    const pc=cardEl([sectionLabel('Upcoming Periods','📅')]);
+    const conf=pred.confidence;
+    const cm=muted(`Confidence: ${conf.charAt(0).toUpperCase()+conf.slice(1)} · ${pred.totalCycles} cycle${pred.totalCycles!==1?'s':''} logged`);
+    cm.style.marginBottom='14px';pc.appendChild(cm);
+    for(let i=0;i<3;i++){
+      const st=addDays(pred.nextStart,i*pred.avgCycle),en=addDays(st,pred.avgPeriod-1),ov=addDays(st,-14);
+      const r=div('pred-row');
+      const dot=div('pred-dot');
+      const info=div('');
+      const ttl=el('div',{style:{fontWeight:'700',color:'var(--text)',marginBottom:'3px',fontSize:'14px'}});
+      ttl.textContent='Period: '+fmtShort(st)+' – '+fmtShort(en);
+      const sub=muted('Ovulation: ~'+fmtShort(ov));sub.style.fontSize='12px';
+      info.appendChild(ttl);info.appendChild(sub);r.appendChild(dot);r.appendChild(info);pc.appendChild(r);
+    }
+    wrap.appendChild(pc);
+  }
+
+  // When to see a doctor
+  const rc=cardEl([sectionLabel('When to See a Doctor','🏥')]);
+  ['Periods lasting more than 7 days','Soaking through protection every hour for several hours','Severe pain that prevents daily activities','Bleeding between periods regularly','No period for 90+ days (and not pregnant)','A sudden change in your usual cycle pattern'].forEach(txt=>{
+    const r=div('');r.style.cssText='padding:9px 0;font-size:13px;color:var(--text-mid);border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start';
+    const dot=div('');dot.style.cssText='width:6px;height:6px;border-radius:50%;background:var(--primary);margin-top:5px;flex-shrink:0';
     const t=el('span');t.textContent=txt;r.appendChild(dot);r.appendChild(t);rc.appendChild(r);
   });
   wrap.appendChild(rc);
   return wrap;
 }
 
+// ─── SETTINGS ─────────────────────────────────────────────────────────────────
 function renderSettings(){
   const s=state.settings;
   const wrap=div('scroll');
   function upd(k,v){state.settings={...s,[k]:v};save('settings',state.settings);render();}
 
   // Profile
-  const pc=cardEl([]);pc.appendChild(cardHead('Profile'));
-  const nl=el('label',{class:'settings-label'});nl.textContent='Your Name';
+  const profc=cardEl([]);
+  const profrow=div('');profrow.style.cssText='display:flex;align-items:center;gap:16px;margin-bottom:20px';
+  const avatar=div('');avatar.style.cssText='width:56px;height:56px;border-radius:18px;background:var(--gradient);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:22px;font-weight:800;color:#fff';
+  avatar.textContent=s.name?s.name[0].toUpperCase():'?';
+  const profinfo=div('');const pnt=el('div',{style:{fontSize:'18px',fontWeight:'800',color:'var(--text)',letterSpacing:'-.03em'}});pnt.textContent=s.name||'Your profile';const pns=muted('Tap below to update your name');
+  profinfo.appendChild(pnt);profinfo.appendChild(pns);
+  profrow.appendChild(avatar);profrow.appendChild(profinfo);profc.appendChild(profrow);
+  const nl=el('label',{style:{fontSize:'13px',fontWeight:'600',color:'var(--text-soft)',display:'block',marginBottom:'8px'}});nl.textContent='Your name';
   const ni=inputEl('text',s.name,v=>upd('name',v));
-  pc.appendChild(nl);pc.appendChild(ni);wrap.appendChild(pc);
+  profc.appendChild(nl);profc.appendChild(ni);wrap.appendChild(profc);
 
-  // Cycle
-  const cc=cardEl([]);cc.appendChild(cardHead('Cycle'));
-  const cl=div('');cl.style.cssText='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px';
-  const clt=el('span',{class:'settings-label',style:{margin:'0'}});clt.textContent='Average Cycle Length';
-  const clv=el('span',{style:{fontSize:'22px',fontWeight:'700',color:'#ec4899',id:'cl-val'}});clv.textContent=s.cycleLength+' days';
+  // Cycle settings
+  const cc=cardEl([sectionLabel('Cycle Settings','🔄')]);
+  const cl=div('');cl.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px';
+  const clt=el('span',{style:{fontSize:'14px',fontWeight:'600',color:'var(--text)'}});clt.textContent='Cycle length';
+  const clv=el('span',{style:{fontSize:'22px',fontWeight:'800',color:'var(--primary)'}});clv.textContent=s.cycleLength+' days';
   cl.appendChild(clt);cl.appendChild(clv);cc.appendChild(cl);
-  cc.appendChild(sliderEl({min:18,max:50,value:s.cycleLength,color:'#ec4899',onChange:v=>{clv.textContent=v+' days';upd('cycleLength',v);}}));
-  const pl=div('');pl.style.cssText='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;margin-top:20px';
-  const plt=el('span',{class:'settings-label',style:{margin:'0'}});plt.textContent='Average Period Length';
-  const plv=el('span',{style:{fontSize:'22px',fontWeight:'700',color:'#f472b6'}});plv.textContent=s.periodLength+' days';
+  cc.appendChild(sliderEl({min:18,max:50,value:s.cycleLength,color:'#e879b8',onChange:v=>{clv.textContent=v+' days';upd('cycleLength',v);}}));
+  const pl=div('');pl.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;margin-top:24px';
+  const plt=el('span',{style:{fontSize:'14px',fontWeight:'600',color:'var(--text)'}});plt.textContent='Period length';
+  const plv=el('span',{style:{fontSize:'22px',fontWeight:'800',color:'var(--primary-2)'}});plv.textContent=s.periodLength+' days';
   pl.appendChild(plt);pl.appendChild(plv);cc.appendChild(pl);
-  cc.appendChild(sliderEl({min:1,max:10,value:s.periodLength,color:'#f472b6',onChange:v=>{plv.textContent=v+' days';upd('periodLength',v);}}));
+  cc.appendChild(sliderEl({min:1,max:10,value:s.periodLength,color:'#a855f7',onChange:v=>{plv.textContent=v+' days';upd('periodLength',v);}}));
   wrap.appendChild(cc);
 
   // Contraception
-  const contc=cardEl([]);contc.appendChild(cardHead('Contraception'));
-  const contr=div('chip-row');
+  const contc=cardEl([sectionLabel('Contraception','💊')]);
+  contc.appendChild(muted('Bloom adjusts predictions and health insights based on your method.'));
+  contc.style.gap='0';
+  const contr=div('chip-row');contr.style.marginTop='12px';
   ['None','Pill','IUD','Implant','Patch','Condoms','Other'].forEach(c=>contr.appendChild(chipEl(c,s.contraception===c,()=>upd('contraception',c))));
   contc.appendChild(contr);wrap.appendChild(contc);
 
-  // Dark mode
-  const dc=cardEl([]);
-  const dtw=div('toggle-wrap');
-  const dleft=div('');dleft.style.cssText='display:flex;align-items:center;gap:10px';
-  dleft.innerHTML=icon(s.darkMode?'moon':'sun',18,s.darkMode?'#a78bfa':'#fb923c',1.75);
-  const dinfo=div('');const dtitle=el('div',{style:{fontSize:'14px',fontWeight:'600',color:'var(--text)'}});dtitle.textContent='Dark Mode';const dsub=mutedEl(s.darkMode?'Dark theme active':'Light theme active');dsub.style.fontSize='12px';dinfo.appendChild(dtitle);dinfo.appendChild(dsub);dleft.appendChild(dinfo);
-  const tog=el('button',{class:'toggle'});tog.style.background=s.darkMode?'#7c3aed':'#e9e3ff';
-  const thumb=div('toggle-thumb');thumb.style.left=s.darkMode?'26px':'3px';tog.appendChild(thumb);
+  // Appearance
+  const appc=cardEl([sectionLabel('Appearance','🎨')]);
+  const dtw=div('toggle-row');
+  const dleft=div('');dleft.style.cssText='display:flex;align-items:center;gap:14px;flex:1';
+  const dico=div('setting-icon');dico.style.background=s.darkMode?'rgba(167,139,250,.15)':'rgba(251,191,36,.12)';
+  dico.innerHTML=icon(s.darkMode?'moon':'sun',20,s.darkMode?'#a78bfa':'#f59e0b',1.75);
+  const dinfo=div('');
+  const dtitle=el('div',{style:{fontSize:'15px',fontWeight:'600',color:'var(--text)'}});dtitle.textContent='Dark Mode';
+  const dsub=muted(s.darkMode?'Dark theme active':'Light theme active');dsub.style.fontSize='12px';
+  dinfo.appendChild(dtitle);dinfo.appendChild(dsub);dleft.appendChild(dico);dleft.appendChild(dinfo);
+  const tog=el('button',{class:'toggle'});tog.style.background=s.darkMode?'var(--primary)':'var(--border)';
+  const thumb=div('toggle-thumb');thumb.style.left=s.darkMode?'26px':'4px';tog.appendChild(thumb);
   tog.onclick=()=>upd('darkMode',!s.darkMode);
-  dtw.appendChild(dleft);dtw.appendChild(tog);dc.appendChild(dtw);wrap.appendChild(dc);
+  dtw.appendChild(dleft);dtw.appendChild(tog);appc.appendChild(dtw);wrap.appendChild(appc);
 
   // Export
-  const ec=cardEl([]);ec.appendChild(cardHead('Export Data'));ec.appendChild(mutedEl('Download your full data as JSON for backup or to share with a doctor.'));
-  ec.style.marginTop='4px';
-  const db=btn('btn-secondary',icon('download',14,'#7c3aed',2)+' Download My Data',()=>{
-    try{const d={periods:state.periods,logs:state.logs,notes:state.notes,settings:state.settings,exported:new Date().toISOString()};const blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='bloom-health-data.json';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},1000);}catch(e){alert('Download failed. Try a different browser.');}
+  const ec=cardEl([sectionLabel('Your Data','📦')]);
+  ec.appendChild(muted('Download your full data as JSON for backup or to share with a doctor.'));
+  const db=btn('btn-secondary',icon('download',14,'var(--text-mid)',2)+' Download my data',()=>{
+    try{
+      const d={periods:state.periods,logs:state.logs,notes:state.notes,settings:state.settings,exported:new Date().toISOString()};
+      const blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
+      const url=URL.createObjectURL(blob);const a=document.createElement('a');
+      a.href=url;a.download='bloom-data.json';document.body.appendChild(a);a.click();
+      setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},1000);
+    }catch{alert('Download failed. Please try a different browser.');}
   });
-  ec.appendChild(db);wrap.appendChild(ec);
+  db.style.marginTop='12px';ec.appendChild(db);
+  const delb=btn('btn-danger',icon('trash',14,'var(--danger-text)',2)+' Delete all data',()=>{
+    if(confirm('This will permanently delete all your Bloom data. Are you sure?')){
+      ['periods','logs','notes','settings','dismissed'].forEach(k=>{try{localStorage.removeItem('bloom_'+k);}catch{}});
+      state.periods=[];state.logs={};state.notes={};state.dismissed=[];
+      state.settings={cycleLength:28,periodLength:5,name:'',contraception:'None',darkMode:false};
+      state.tab='home';render();
+    }
+  });
+  delb.style.marginTop='8px';ec.appendChild(delb);wrap.appendChild(ec);
 
   // About
-  const ab=cardEl([cardHead('About Bloom')]);ab.appendChild(mutedEl('Bloom v2 — Free, private period and health tracker. All data is stored only on your device. No servers, no subscriptions, no tracking.'));wrap.appendChild(ab);
-
-  // Delete
-  const del=cardEl([cardHead('Data')]);
-  const delb=btn('btn-danger',icon('trash',14,'#e11d48',2)+' Delete All Data',()=>{
-    if(confirm('Delete all Bloom data? This cannot be undone.')){['periods','logs','notes','settings','dismissed'].forEach(k=>{try{localStorage.removeItem('bloom_'+k);}catch(e){}});state.periods=[];state.logs={};state.notes={};state.dismissed=[];state.settings={cycleLength:28,periodLength:5,name:'',contraception:'None',darkMode:false};state.tab='home';render();}
-  });
-  del.appendChild(delb);wrap.appendChild(del);
+  const ab=cardEl([sectionLabel('About Bloom','🌸')]);
+  ab.appendChild(muted('Bloom v3 — Free, private period and health tracker. All your data is stored only on this device. No servers. No subscriptions. No ads.'));
+  wrap.appendChild(ab);
   return wrap;
 }
 
+// ─── ONBOARDING ───────────────────────────────────────────────────────────────
 function renderOnboard(){
   let step=0;
   const form={name:'',cycleLength:28,periodLength:5,lastPeriod:''};
   const root=div('ob-root');
+  // Decorative blobs
+  const b1=div('blob');b1.style.cssText='top:-80px;right:-80px;width:280px;height:280px;background:radial-gradient(circle,rgba(217,70,168,.2) 0%,transparent 65%)';
+  const b2=div('blob');b2.style.cssText='bottom:-60px;left:-60px;width:240px;height:240px;background:radial-gradient(circle,rgba(147,51,234,.15) 0%,transparent 65%)';
+  root.appendChild(b1);root.appendChild(b2);
   const card=div('ob-card');root.appendChild(card);
 
   function buildDots(){
     const d=div('ob-dots');
-    for(let i=0;i<5;i++){const dot=div('ob-dot');dot.style.width=i===step?'22px':'7px';dot.style.background=i===step?'#ec4899':'#f0ebff';d.appendChild(dot);}
+    for(let i=0;i<5;i++){const dot=div('ob-dot');dot.style.width=i===step?'24px':'7px';dot.style.background=i===step?'var(--primary)':'var(--border)';d.appendChild(dot);}
     return d;
   }
 
   function finish(){
     const merged={...state.settings,...form};state.settings=merged;save('settings',merged);
-    if(form.lastPeriod){const p=[{start:form.lastPeriod,end:addDays(form.lastPeriod,form.periodLength-1),id:Date.now()}];state.periods=p;save('periods',p);}
+    if(form.lastPeriod){const pp=[{start:form.lastPeriod,end:addDays(form.lastPeriod,form.periodLength-1),id:Date.now()}];state.periods=pp;save('periods',pp);}
     render();
   }
 
   const steps=[
     ()=>{
       card.innerHTML='';
-      const ic=div('ob-icon');ic.style.background='linear-gradient(135deg,#fce7f3,#ede9fe)';ic.innerHTML=icon('heart',30,'#ec4899');card.appendChild(ic);
-      const t=el('h1',{style:{fontSize:'26px',fontWeight:'700',color:'#1e1235',letterSpacing:'-.02em',margin:'0'}});t.textContent='Welcome to Bloom';card.appendChild(t);
-      const s=el('p',{style:{fontSize:'15px',color:'#6b5c8a',lineHeight:'1.65',margin:'0'}});s.textContent='Your private, intelligent period and health tracker. No subscriptions. Your data never leaves your device.';card.appendChild(s);
-      const b=btn('btn-primary','Get Started',()=>{step=1;steps[step]();});card.appendChild(b);
+      const ic=div('ob-icon');ic.style.background='var(--gradient)';ic.innerHTML=icon('heart',32,'#fff',1.5);card.appendChild(ic);
+      const t=el('h1',{class:'ob-title'});t.textContent='Welcome to Bloom';card.appendChild(t);
+      const s=el('p',{class:'ob-sub'});s.textContent='Your private, intelligent period tracker. No subscriptions, no account. Your data never leaves your device.';card.appendChild(s);
+      card.appendChild(btn('btn-primary','Get started →',()=>{step=1;steps[step]();}));
       card.appendChild(buildDots());
     },
     ()=>{
       card.innerHTML='';
-      const ic=div('ob-icon');ic.style.background='linear-gradient(135deg,#ede9fe,#fce7f3)';ic.innerHTML=icon('user',28,'#7c3aed');card.appendChild(ic);
-      const t=el('h2',{style:{fontSize:'22px',fontWeight:'700',color:'#1e1235',margin:'0'}});t.textContent='What should we call you?';card.appendChild(t);
-      const inp=inputEl('text',form.name,v=>{form.name=v;});inp.placeholder='Your first name';inp.style.marginTop='4px';card.appendChild(inp);
-      const b=btn('btn-primary','Continue',()=>{if(!inp.value.trim()){inp.focus();return;}form.name=inp.value.trim();step=2;steps[step]();});card.appendChild(b);
+      const ic=div('ob-icon');ic.style.background='var(--gradient-bg)';ic.innerHTML='<span style="font-size:32px">👋</span>';card.appendChild(ic);
+      const t=el('h2',{class:'ob-title'});t.textContent="What's your name?";card.appendChild(t);
+      const s=el('p',{class:'ob-sub'});s.textContent='Just your first name so Bloom can personalise your experience.';card.appendChild(s);
+      const inp=inputEl('text',form.name,v=>{form.name=v;});inp.placeholder='Your first name';card.appendChild(inp);
+      card.appendChild(btn('btn-primary','Continue →',()=>{if(!inp.value.trim()){inp.focus();return;}form.name=inp.value.trim();step=2;steps[step]();}));
       card.appendChild(buildDots());
     },
     ()=>{
       card.innerHTML='';
-      const ic=div('ob-icon');ic.style.background='linear-gradient(135deg,#fce7f3,#ede9fe)';ic.innerHTML=icon('refresh',28,'#ec4899');card.appendChild(ic);
-      const t=el('h2',{style:{fontSize:'22px',fontWeight:'700',color:'#1e1235',margin:'0'}});t.textContent='Your cycle length';card.appendChild(t);
-      const sub=el('p',{style:{fontSize:'14px',color:'#6b5c8a',margin:'0'}});sub.textContent='Average days from the start of one period to the next';card.appendChild(sub);
-      const sw=sliderEl({min:18,max:50,value:form.cycleLength,color:'#ec4899',showValue:true,unit:' days',onChange:v=>form.cycleLength=v});card.appendChild(sw);
-      const b=btn('btn-primary','Continue',()=>{step=3;steps[step]();});card.appendChild(b);
+      const ic=div('ob-icon');ic.style.background='var(--gradient-bg)';ic.innerHTML='<span style="font-size:32px">🔄</span>';card.appendChild(ic);
+      const t=el('h2',{class:'ob-title'});t.textContent='Your cycle length';card.appendChild(t);
+      const s=el('p',{class:'ob-sub'});s.textContent='How many days from the start of one period to the next? Most cycles are 24–35 days.';card.appendChild(s);
+      card.appendChild(sliderEl({min:18,max:50,value:form.cycleLength,color:'#e879b8',showCentered:true,unit:' days',onChange:v=>form.cycleLength=v}));
+      card.appendChild(btn('btn-primary','Continue →',()=>{step=3;steps[step]();}));
       card.appendChild(buildDots());
     },
     ()=>{
       card.innerHTML='';
-      const ic=div('ob-icon');ic.style.background='linear-gradient(135deg,#fce7f3,#fff0f6)';ic.innerHTML=icon('drop',28,'#f472b6');card.appendChild(ic);
-      const t=el('h2',{style:{fontSize:'22px',fontWeight:'700',color:'#1e1235',margin:'0'}});t.textContent='Period length';card.appendChild(t);
-      const sub=el('p',{style:{fontSize:'14px',color:'#6b5c8a',margin:'0'}});sub.textContent='How many days does your period usually last?';card.appendChild(sub);
-      const sw=sliderEl({min:1,max:10,value:form.periodLength,color:'#f472b6',showValue:true,unit:' days',onChange:v=>form.periodLength=v});card.appendChild(sw);
-      const b=btn('btn-primary','Continue',()=>{step=4;steps[step]();});card.appendChild(b);
+      const ic=div('ob-icon');ic.style.background='var(--gradient-bg)';ic.innerHTML='<span style="font-size:32px">💧</span>';card.appendChild(ic);
+      const t=el('h2',{class:'ob-title'});t.textContent='Period length';card.appendChild(t);
+      const s=el('p',{class:'ob-sub'});s.textContent='How many days does your period usually last?';card.appendChild(s);
+      card.appendChild(sliderEl({min:1,max:10,value:form.periodLength,color:'#a855f7',showCentered:true,unit:' days',onChange:v=>form.periodLength=v}));
+      card.appendChild(btn('btn-primary','Continue →',()=>{step=4;steps[step]();}));
       card.appendChild(buildDots());
     },
     ()=>{
       card.innerHTML='';
-      const ic=div('ob-icon');ic.style.background='linear-gradient(135deg,#ede9fe,#f5f0ff)';ic.innerHTML=icon('calendar',28,'#7c3aed');card.appendChild(ic);
-      const t=el('h2',{style:{fontSize:'22px',fontWeight:'700',color:'#1e1235',margin:'0'}});t.textContent='Last period start date';card.appendChild(t);
+      const ic=div('ob-icon');ic.style.background='var(--gradient-bg)';ic.innerHTML='<span style="font-size:32px">📅</span>';card.appendChild(ic);
+      const t=el('h2',{class:'ob-title'});t.textContent='Last period start date';card.appendChild(t);
+      const s=el('p',{class:'ob-sub'});s.textContent='This helps Bloom calculate your next period and current cycle phase right away.';card.appendChild(s);
       const inp=inputEl('date',form.lastPeriod,v=>form.lastPeriod=v);inp.max=todayStr();card.appendChild(inp);
-      const b=btn('btn-primary','Start Tracking',()=>{if(!inp.value){inp.focus();return;}form.lastPeriod=inp.value;finish();});card.appendChild(b);
-      const sk=btn('btn-ghost','Skip for now',finish);card.appendChild(sk);
+      card.appendChild(btn('btn-primary','Start tracking 🌸',()=>{if(!inp.value){inp.focus();return;}form.lastPeriod=inp.value;finish();}));
+      card.appendChild(btn('btn-ghost','Skip for now',finish));
       card.appendChild(buildDots());
     },
   ];
@@ -882,25 +1037,23 @@ function renderOnboard(){
   return root;
 }
 
-// ─── Main Render ──────────────────────────────────────────────────────────────
+// ─── RENDER ───────────────────────────────────────────────────────────────────
 function render(){
   const app=document.getElementById('app');
   const existingSaveBar=document.getElementById('save-bar');if(existingSaveBar)existingSaveBar.remove();
   app.innerHTML='';
 
-  // Apply theme to both #app and <html> so body/html bg colour syncs
   const theme=state.settings.darkMode?'dark':'light';
   app.dataset.theme=theme;
   document.documentElement.dataset.theme=theme;
-  document.querySelector('meta[name=theme-color]').content=state.settings.darkMode?'#0e0920':'#ec4899';
+  document.querySelector('meta[name=theme-color]').content=state.settings.darkMode?'#0d0921':'#d946a8';
 
-  // Blobs
-  const blob1=div('blob');blob1.style.cssText='top:-160px;right:-120px;width:420px;height:420px';
-  const phaseColors={menstrual:'#fda4af',follicular:'#c4b5fd',fertile:'#6ee7b7',ovulation:'#6ee7b7',pms:'#fdba74',luteal:'#c4b5fd'};
+  // Background blobs
   const pred=buildPredictions(state.periods,state.settings);
-  const col=pred&&phaseColors[pred.phase]?phaseColors[pred.phase]:'#e9d5ff';
-  blob1.style.background=`radial-gradient(circle,${col}44 0%,transparent 65%)`;
-  const blob2=div('blob');blob2.style.cssText='bottom:-100px;left:-100px;width:340px;height:340px;background:radial-gradient(circle,#e9d5ff30 0%,transparent 65%)';
+  const phaseColors={menstrual:'#e879b8',follicular:'#9d5cf6',fertile:'#10b981',ovulation:'#10b981',pms:'#f59e0b',luteal:'#8b5cf6'};
+  const col=pred&&phaseColors[pred.phase]?phaseColors[pred.phase]:'#9d5cf6';
+  const blob1=div('blob');blob1.style.cssText=`top:-140px;right:-100px;width:380px;height:380px;background:radial-gradient(circle,${col}28 0%,transparent 65%)`;
+  const blob2=div('blob');blob2.style.cssText='bottom:-80px;left:-80px;width:300px;height:300px;background:radial-gradient(circle,rgba(147,51,234,.12) 0%,transparent 65%)';
   app.appendChild(blob1);app.appendChild(blob2);
 
   if(!state.settings.name){app.appendChild(renderOnboard());return;}
@@ -912,34 +1065,49 @@ function render(){
   // Header
   const header=div('header');
   const brand=div('brand');
-  const bi=div('brand-icon');bi.innerHTML=icon('heart',16,'#ec4899',2);
+  const bi=div('brand-icon');bi.innerHTML=icon('heart',16,'#d946a8',2);
   const bn=div('brand-name');bn.textContent='bloom';
   brand.appendChild(bi);brand.appendChild(bn);header.appendChild(brand);
-  const right=div('');right.style.cssText='display:flex;align-items:center;gap:8px';
-  const greet=el('span',{style:{fontSize:'13px',color:'var(--text-soft)',fontWeight:'500'}});greet.textContent='Hey, '+state.settings.name;
+  const right=div('header-right');
+  const greet=el('span',{class:'header-greeting'});greet.textContent='Hi, '+state.settings.name;
   right.appendChild(greet);
   if(activeAlerts.length){const badge=div('alert-badge');badge.textContent=activeAlerts.length;right.appendChild(badge);}
   header.appendChild(right);app.appendChild(header);
 
-  // Screen
+  // Screen content
   const screen=div('screen');
   const t=state.tab;
   let content;
   if(t==='home')content=renderHome(pred,state.periods,state.logs,activeAlerts,state.settings,suppressOv);
   else if(t==='calendar')content=renderCalendar(state.periods,pred,state.logs);
   else if(t==='log')content=renderLog(state.logs,state.notes);
-  else if(t==='insights')content=renderInsights(state.periods,state.logs,pred,state.settings);
-  else if(t==='health')content=renderHealth(activeAlerts,health.insights,state.settings);
+  else if(t==='insights')content=renderInsights(state.periods,state.logs,pred,state.settings,activeAlerts,health.insights);
   else if(t==='settings')content=renderSettings();
   if(content)screen.appendChild(content);
   app.appendChild(screen);
 
-  // Nav
+  // Nav — 5 tabs
   const nav=div('nav');
-  const tabs=[{id:'home',icon:'home',label:'Home'},{id:'calendar',icon:'calendar',label:'Calendar'},{id:'log',icon:'pen',label:'Log'},{id:'insights',icon:'chart',label:'Insights'},{id:'health',icon:'activity',label:'Health',badge:activeAlerts.length},{id:'settings',icon:'gear',label:'Settings'}];
+  const tabs=[
+    {id:'home',icon:'home',label:'Home'},
+    {id:'calendar',icon:'calendar',label:'Calendar'},
+    {id:'log',icon:'plus',label:'Log',special:true},
+    {id:'insights',icon:'chart',label:'Insights',badge:activeAlerts.length},
+    {id:'settings',icon:'gear',label:'You'},
+  ];
   tabs.forEach(tb=>{
+    if(tb.special){
+      const b=el('button',{class:'nav-btn nav-log'+(state.tab===tb.id?' active':'')});
+      const circle=div('nav-log-circle');circle.innerHTML=icon('plus',22,'#fff',2.5);
+      const lbl=el('span',{class:'nav-label'});lbl.textContent=tb.label;
+      lbl.style.color=state.tab===tb.id?'var(--primary)':'var(--text-soft)';
+      b.appendChild(circle);b.appendChild(lbl);
+      b.onclick=()=>{state.tab=tb.id;render();};
+      nav.appendChild(b);return;
+    }
     const b=el('button',{class:'nav-btn'+(state.tab===tb.id?' active':'')});
-    const ic=div('');ic.style.position='relative';ic.innerHTML=icon(tb.icon,20,state.tab===tb.id?'#ec4899':'var(--text-soft)',state.tab===tb.id?2:1.75);
+    const ic=div('');ic.style.position='relative';
+    ic.innerHTML=icon(tb.icon,22,state.tab===tb.id?'var(--primary)':'var(--text-soft)',state.tab===tb.id?2:1.75);
     if(tb.badge){const dot=div('nav-dot');dot.textContent=tb.badge;ic.appendChild(dot);}
     const lbl=el('span',{class:'nav-label'});lbl.textContent=tb.label;
     b.appendChild(ic);b.appendChild(lbl);
@@ -949,5 +1117,4 @@ function render(){
   app.appendChild(nav);
 }
 
-// Boot
 render();
