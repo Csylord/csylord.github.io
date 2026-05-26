@@ -99,14 +99,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.4}
 .scroll{padding:12px 16px;display:flex;flex-direction:column;gap:12px}
 
 /* Staggered card entrance */
-.scroll>*{animation:fadeInUp .32s ease both}
-.scroll>*:nth-child(2){animation-delay:.05s}
-.scroll>*:nth-child(3){animation-delay:.10s}
-.scroll>*:nth-child(4){animation-delay:.15s}
-.scroll>*:nth-child(5){animation-delay:.20s}
-.scroll>*:nth-child(6){animation-delay:.25s}
-.scroll>*:nth-child(7){animation-delay:.30s}
-.scroll>*:nth-child(8){animation-delay:.35s}
+/* Card entrance animation removed — vanilla JS re-renders would re-trigger it on every selection */
 
 /* === Header === */
 .header{max-width:480px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;padding:16px 20px 10px;background:var(--header);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
@@ -115,7 +108,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.4}
   width:32px;height:32px;border-radius:10px;
   background:linear-gradient(135deg,#fce7f3,#ede9fe);
   display:flex;align-items:center;justify-content:center;
-  animation:floatBrand 7s ease-in-out infinite;
+  animation:floatBrand 18s ease-in-out infinite;
   transform-origin:center bottom;
 }
 .brand-name{
@@ -124,13 +117,13 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.4}
   background-size:300% auto;
   -webkit-background-clip:text;background-clip:text;
   -webkit-text-fill-color:transparent;
-  animation:gradientFlow 14s linear infinite;
+  animation:gradientFlow 28s linear infinite;
 }
 .alert-badge{
   background:#f472b6;color:#fff;border-radius:99px;min-width:20px;height:20px;
   padding:0 6px;display:flex;align-items:center;justify-content:center;
   font-size:10px;font-weight:700;
-  animation:pulseBadge 2.2s ease-in-out infinite;
+  animation:pulseBadge 5s ease-in-out infinite;
 }
 
 /* === Cards === */
@@ -150,20 +143,19 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.4}
   width:20px;height:2px;
   background:linear-gradient(90deg,#ec4899,#f472b6);
   border-radius:99px;
-  animation:navLinePop .35s cubic-bezier(.34,1.56,.64,1) both;
 }
 .nav-label{font-size:9px;font-weight:600;letter-spacing:.04em}
 .nav-dot{position:absolute;top:-3px;right:calc(50% - 18px);background:#f472b6;color:#fff;border-radius:50%;width:15px;height:15px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;border:2px solid var(--nav)}
 .nav-btn svg{transition:transform .2s cubic-bezier(.34,1.56,.64,1)}
 .nav-btn:active svg{transform:scale(.78)}
-.nav-btn.active svg{animation:iconBounce .4s cubic-bezier(.34,1.56,.64,1) both}
+/* nav icon bounce removed — re-triggered on every state change */
 
 /* === Chips === */
 .chip-row{display:flex;flex-wrap:wrap;gap:7px}
 .chip{
   background:var(--chip);border:1.5px solid var(--border);color:var(--text-mid);
   border-radius:99px;padding:8px 16px;font-size:13px;font-weight:500;
-  transition:all .22s cubic-bezier(.34,1.56,.64,1);
+  transition:all .18s ease;
 }
 .chip.on{background:var(--chip-on);color:var(--chip-on-text);border-color:var(--chip-on-border);font-weight:600}
 .chip:active{transform:scale(.91)}
@@ -172,7 +164,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.4}
   background:var(--surface);border:1.5px solid var(--border);border-radius:12px;
   padding:9px 6px;font-size:13px;font-weight:500;color:var(--text-mid);
   text-align:center;width:100%;
-  transition:all .22s cubic-bezier(.34,1.56,.64,1);
+  transition:all .18s ease;
 }
 .sel-chip.on{background:var(--sel-on-bg);border-color:var(--sel-on-border);color:var(--sel-on-text);font-weight:600}
 .sel-chip.on-pink{background:var(--sel-pink-bg);border-color:var(--sel-pink-border);color:var(--sel-pink-text)}
@@ -182,7 +174,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.4}
 .btn-primary{
   background:linear-gradient(135deg,#ec4899,#f472b6,#a78bfa,#f472b6,#ec4899);
   background-size:300% 300%;
-  animation:gradientFlow 5s ease infinite;
+  animation:gradientFlow 14s ease infinite;
   border:none;border-radius:14px;padding:13px 20px;color:#fff;
   font-size:14px;font-weight:700;width:100%;
   box-shadow:0 4px 16px rgba(236,72,153,.3);
@@ -228,7 +220,7 @@ textarea.input{resize:vertical;line-height:1.6}
 .phase-hero{
   border-radius:24px;padding:22px 20px;position:relative;overflow:hidden;
   background-size:250% 250% !important;
-  animation:heroGradient 10s ease infinite;
+  animation:heroGradient 30s ease infinite;
 }
 @keyframes heroGradient{
   0%,100%{background-position:0% 20%}
@@ -249,7 +241,7 @@ textarea.input{resize:vertical;line-height:1.6}
 .tip-row{font-size:13px;color:var(--text-mid);padding:7px 12px;background:var(--tip-bg);border-radius:12px;font-weight:500;margin-bottom:6px;backdrop-filter:blur(4px)}
 
 /* === Ring === */
-.ring-wrap{position:relative;flex-shrink:0;animation:ringPop .55s cubic-bezier(.34,1.56,.64,1) both;animation-delay:.1s}
+.ring-wrap{position:relative;flex-shrink:0}
 .ring-label{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;line-height:1}
 
 /* === Metrics grid === */
@@ -258,12 +250,8 @@ textarea.input{resize:vertical;line-height:1.6}
   background:var(--card);border:1px solid var(--border);border-radius:20px;
   padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:5px;
   box-shadow:0 2px 12px var(--shadow);
-  animation:fadeInUp .38s ease both;
   transition:transform .18s ease,box-shadow .18s ease;
 }
-.metric-card:nth-child(2){animation-delay:.06s}
-.metric-card:nth-child(3){animation-delay:.12s}
-.metric-card:nth-child(4){animation-delay:.18s}
 .metric-card:active{transform:scale(.96);box-shadow:0 1px 6px var(--shadow)}
 .metric-value{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1}
 .metric-label{font-size:10px;color:var(--text-soft);text-transform:uppercase;letter-spacing:.07em;font-weight:600}
@@ -282,19 +270,19 @@ textarea.input{resize:vertical;line-height:1.6}
 /* === Toggle === */
 .toggle-wrap{display:flex;align-items:center;justify-content:space-between}
 .toggle{width:52px;height:28px;border-radius:99px;border:none;cursor:pointer;position:relative;transition:background .25s;flex-shrink:0}
-.toggle-thumb{position:absolute;top:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.2);transition:left .25s cubic-bezier(.34,1.56,.64,1)}
+.toggle-thumb{position:absolute;top:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.2);transition:left .35s ease}
 
 /* === Bar chart === */
 .bar-chart{display:flex;align-items:flex-end;gap:5px;height:90px;padding:8px 0}
 .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;height:100%;justify-content:flex-end}
-.bar-fill{width:100%;border-radius:5px 5px 0 0;min-height:4px;transition:height .6s cubic-bezier(.34,1.56,.64,1)}
+.bar-fill{width:100%;border-radius:5px 5px 0 0;min-height:4px;transition:height 1.2s ease}
 .bar-lbl{font-size:9px;color:var(--text-soft);margin-top:4px;font-weight:600}
 
 /* === Insight rows === */
 .ins-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:13px}
 .ins-label{width:116px;flex-shrink:0;color:var(--text);font-weight:500}
 .ins-track{flex:1;height:8px;background:var(--surface);border-radius:99px;overflow:hidden;border:1px solid var(--border)}
-.ins-bar{height:100%;border-radius:99px;transition:width .6s cubic-bezier(.34,1.56,.64,1)}
+.ins-bar{height:100%;border-radius:99px;transition:width 1.2s ease}
 .ins-count{width:28px;text-align:right;color:var(--text-soft);font-size:12px;font-weight:600}
 
 /* === Health cards === */
@@ -349,8 +337,8 @@ textarea.input{resize:vertical;line-height:1.6}
 
 /* === Onboard === */
 .ob-root{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--ob-bg)}
-.ob-card{background:var(--ob-card);border-radius:28px;padding:44px 28px;max-width:380px;width:100%;display:flex;flex-direction:column;gap:18px;align-items:center;text-align:center;box-shadow:0 8px 40px var(--shadow);animation:fadeInUp .45s cubic-bezier(.34,1.56,.64,1) both}
-.ob-icon{width:64px;height:64px;border-radius:20px;display:flex;align-items:center;justify-content:center;animation:floatBrand 4s ease-in-out infinite}
+.ob-card{background:var(--ob-card);border-radius:28px;padding:44px 28px;max-width:380px;width:100%;display:flex;flex-direction:column;gap:18px;align-items:center;text-align:center;box-shadow:0 8px 40px var(--shadow);animation:fadeInUp .7s ease both}
+.ob-icon{width:64px;height:64px;border-radius:20px;display:flex;align-items:center;justify-content:center;animation:floatBrand 10s ease-in-out infinite}
 .ob-dots{display:flex;gap:6px;margin-top:4px}
 .ob-dot{height:6px;border-radius:99px;background:var(--border);transition:all .35s cubic-bezier(.34,1.56,.64,1)}
 
