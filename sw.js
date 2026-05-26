@@ -7,7 +7,7 @@
 // To force an update on all devices: bump CACHE_VERSION below, push to GitHub.
 // Phones will pick up the new SW within ~24h, or immediately on next open.
 
-const CACHE_VERSION = 'bloom-v5';
+const CACHE_VERSION = 'bloom-v6';
 const APP_FILES = [
   '/',
   '/index.html',
