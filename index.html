@@ -6,27 +6,69 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
 <meta name="apple-mobile-web-app-title" content="Bloom"/>
-<meta name="theme-color" content="#faf7ff"/>
+<meta name="theme-color" content="#ec4899"/>
 <title>Bloom</title>
 <link rel="stylesheet" href="styles.css"/>
 <link rel="manifest" href="manifest.json"/>
-<link rel="apple-touch-icon" href="icons/icon-192.png"/>
-<meta name="apple-mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
-<meta name="apple-mobile-web-app-title" content="Bloom"/>
-<meta name="theme-color" content="#ec4899"/>
+<link rel="apple-touch-icon" href="icon-192.png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<style>
+  #update-banner{
+    display:none;position:fixed;top:0;left:50%;transform:translateX(-50%);
+    width:100%;max-width:480px;z-index:9999;
+    background:linear-gradient(135deg,#ec4899,#a78bfa);
+    color:#fff;text-align:center;padding:13px 20px;
+    font-family:'DM Sans',system-ui,sans-serif;font-size:14px;font-weight:600;
+    cursor:pointer;box-shadow:0 4px 20px rgba(236,72,153,.4);
+    animation:slideDown .4s ease;
+  }
+  @keyframes slideDown{from{transform:translateX(-50%) translateY(-100%)}to{transform:translateX(-50%) translateY(0)}}
+</style>
 </head>
 <body>
+<div id="update-banner" onclick="applyUpdate()">
+  ✦ New version available — tap to update
+</div>
 <div id="app"></div>
 <script src="app.js"></script>
 <script>
+  let newWorker;
+
+  function applyUpdate() {
+    if (newWorker) {
+      newWorker.postMessage('skipWaiting');
+    } else {
+      window.location.reload();
+    }
+  }
+
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js')
-        .then(r => console.log('Bloom SW registered:', r.scope))
-        .catch(e => console.warn('SW registration failed:', e));
+      navigator.serviceWorker.register('/sw.js').then(reg => {
+
+        // A new SW is found and waiting — show the banner
+        reg.addEventListener('updatefound', () => {
+          newWorker = reg.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New version ready — show the tap-to-update banner
+              document.getElementById('update-banner').style.display = 'block';
+            }
+          });
+        });
+
+        // When the new SW takes over, reload to get fresh files
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          window.location.reload();
+        });
+
+        // Check for updates every time the app comes into focus
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') reg.update();
+        });
+
+      }).catch(e => console.warn('SW failed:', e));
     });
   }
 </script>
