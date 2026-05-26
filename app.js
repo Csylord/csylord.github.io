@@ -410,7 +410,7 @@ function renderCalendar(periods,pred,logs){
     const today=todayStr();
     for(let d=1;d<=daysInMonth(yr,mo);d++){
       const ds=isoDate(yr,mo,d);
-      const inPeriod=periods.some(p=>ds>=p.start&&ds<=p.end);
+      const inPeriod=state.periods.some(p=>ds>=p.start&&ds<=p.end);
       let bg='transparent',color='var(--text)',border='transparent',dash=false;
       if(inPeriod){bg='#f43f5e';color='#fff';}
       else if(pred){
@@ -444,12 +444,21 @@ function renderCalendar(periods,pred,logs){
 
     // Selected date
     if(sel){
-      const sp=periods.find(p=>sel>=p.start&&sel<=p.end);
+      const sp=state.periods.find(p=>sel>=p.start&&sel<=p.end);
       const sc=cardEl([]);
       const sh=cardHead(fmtFull(sel));sc.appendChild(sh);
       if(sp){
-        const rb=btn('btn-danger',icon('trash',14,'#e11d48',2)+' Remove period entry',()=>{
-          state.periods=state.periods.filter(p=>p.id!==sp.id);save('periods',state.periods);sel=null;rebuild();
+        // If selected day is after the start, offer to end the period here
+        if(sel>sp.start){
+          const eb=btn('btn-secondary',icon('check',14,'#7c3aed',2)+' End period on this day',()=>{
+            state.periods=state.periods.map(p=>p.id===sp.id?{...p,end:sel}:p);
+            save('periods',state.periods);sel=null;rebuild();
+          });sc.appendChild(eb);
+          const gap=div('');gap.style.height='8px';sc.appendChild(gap);
+        }
+        const rb=btn('btn-danger',icon('trash',14,'#e11d48',2)+' Remove entire period entry',()=>{
+          state.periods=state.periods.filter(p=>p.id!==sp.id);
+          save('periods',state.periods);sel=null;rebuild();
         });sc.appendChild(rb);
       } else {
         const ab=btn('btn-primary','Mark as period start',()=>{
@@ -487,8 +496,8 @@ function renderLog(logs,notes){
     const fertScore=pred?.fertilityMap[date]||0;
     const phaseLabel=pred?(date>=pred.nextStart&&date<=pred.nextEnd?'Predicted period day':date===pred.ovulation?'Predicted ovulation':date>=pred.fertileStart&&date<=pred.fertileEnd?'Fertile window':date>=(pred.pmsStart||'')&&date<(pred.nextStart||'')?'PMS window':null):null;
 
-    function setLog(field,val){logs[date]={...log,[field]:val};state.logs=logs;save('logs',logs);dirty=true;rebuildSaveBar();}
-    function toggleLog(field,item){const arr=log[field]||[];logs[date]={...log,[field]:arr.includes(item)?arr.filter(x=>x!==item):[...arr,item]};state.logs=logs;save('logs',logs);dirty=true;rebuildSaveBar();}
+    function setLog(field,val){const cur=logs[date]||{};logs[date]={...cur,[field]:val};state.logs=logs;save('logs',logs);dirty=true;rebuildSaveBar();}
+    function toggleLog(field,item){const cur=logs[date]||{};const arr=cur[field]||[];logs[date]={...cur,[field]:arr.includes(item)?arr.filter(x=>x!==item):[...arr,item]};state.logs=logs;save('logs',logs);dirty=true;rebuildSaveBar();}
 
     // Date
     const dc=cardEl([]);dc.appendChild(cardHead('Date'));
