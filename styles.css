@@ -71,10 +71,6 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.4}
   60%{transform:translateX(-50%) scaleX(1.35)}
   to{transform:translateX(-50%) scaleX(1);opacity:1}
 }
-@keyframes sheenSweep{
-  0%{transform:translateX(-120%)}
-  100%{transform:translateX(350%)}
-}
 @keyframes ringPop{
   0%{opacity:0;transform:scale(.8)}
   65%{transform:scale(1.06)}
@@ -229,12 +225,14 @@ textarea.input{resize:vertical;line-height:1.6}
 .slider-minmax{display:flex;justify-content:space-between;margin-top:4px;font-size:11px;color:var(--text-soft);font-weight:500}
 
 /* === Phase Hero === */
-.phase-hero{border-radius:24px;padding:22px 20px;position:relative;overflow:hidden}
-.phase-hero::after{
-  content:'';position:absolute;top:0;bottom:0;left:0;width:55%;
-  background:linear-gradient(90deg,transparent,rgba(255,255,255,.16),transparent);
-  animation:sheenSweep 5s ease-in-out infinite;
-  animation-delay:1.5s;pointer-events:none;border-radius:inherit;
+.phase-hero{
+  border-radius:24px;padding:22px 20px;position:relative;overflow:hidden;
+  background-size:250% 250% !important;
+  animation:heroGradient 10s ease infinite;
+}
+@keyframes heroGradient{
+  0%,100%{background-position:0% 20%}
+  50%{background-position:100% 80%}
 }
 /* Dark mode phase backgrounds */
 [data-theme=dark] .phase-menstrual{background:rgba(244,114,182,.12) !important}
