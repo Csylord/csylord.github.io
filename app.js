@@ -414,10 +414,25 @@ function renderCalendar(periods,pred,logs){
       let bg='transparent',color='var(--text)',border='transparent',dash=false;
       if(inPeriod){bg='#f43f5e';color='#fff';}
       else if(pred){
-        if(ds>=pred.nextStart&&ds<=pred.nextEnd){bg='rgba(244,63,94,.15)';color='#f43f5e';dash=true;}
-        else if(ds===pred.ovulation){bg='#10b981';color='#fff';}
-        else if(ds>=pred.fertileStart&&ds<=pred.fertileEnd){bg='rgba(16,185,129,.15)';color='#10b981';}
-        else if(ds>=pred.pmsStart&&ds<pred.nextStart){bg='rgba(251,146,60,.15)';color='#fb923c';}
+        // Project 6 future cycles so predictions show on any forward month
+        let matched=false;
+        for(let c=0;c<6&&!matched;c++){
+          const offset=c*pred.avgCycle;
+          const pStart=addDays(pred.nextStart,offset);
+          const pEnd=addDays(pStart,pred.avgPeriod-1);
+          const ov=addDays(pStart,-14);
+          const fStart=addDays(ov,-5);
+          const fEnd=addDays(ov,1);
+          const pms=addDays(pStart,-7);
+          // Skip cycles that are entirely in the past relative to viewed month
+          if(pEnd<isoDate(yr,mo,1))continue;
+          // Stop projecting if cycle starts beyond 6 months ahead
+          if(pStart>isoDate(yr,mo,daysInMonth(yr,mo))&&c>0)break;
+          if(ds>=pStart&&ds<=pEnd){bg='rgba(244,63,94,.15)';color='#f43f5e';dash=true;matched=true;}
+          else if(ds===ov){bg='#10b981';color='#fff';matched=true;}
+          else if(ds>=fStart&&ds<=fEnd){bg='rgba(16,185,129,.15)';color='#10b981';matched=true;}
+          else if(ds>=pms&&ds<pStart){bg='rgba(251,146,60,.15)';color='#fb923c';matched=true;}
+        }
       }
       const cell=el('button',{class:'cal-day'});
       cell.textContent=d;
@@ -448,18 +463,25 @@ function renderCalendar(periods,pred,logs){
       const sc=cardEl([]);
       const sh=cardHead(fmtFull(sel));sc.appendChild(sh);
       if(sp){
-        // If selected day is after the start, offer to end the period here
         if(sel>sp.start){
+          // Mid-period day: only let them trim the end — no full delete
+          const info=mutedEl('Day '+(diffDays(sp.start,sel)+1)+' of your period (started '+fmtShort(sp.start)+')');
+          sc.appendChild(info);
+          const gap=div('');gap.style.height='10px';sc.appendChild(gap);
           const eb=btn('btn-secondary',icon('check',14,'#7c3aed',2)+' End period on this day',()=>{
             state.periods=state.periods.map(p=>p.id===sp.id?{...p,end:sel}:p);
             save('periods',state.periods);sel=null;rebuild();
           });sc.appendChild(eb);
-          const gap=div('');gap.style.height='8px';sc.appendChild(gap);
+        } else {
+          // Start day: show remove option
+          const info=mutedEl('Period start day — tap below to remove this entry entirely.');
+          sc.appendChild(info);
+          const gap=div('');gap.style.height='10px';sc.appendChild(gap);
+          const rb=btn('btn-danger',icon('trash',14,'#e11d48',2)+' Remove period entry',()=>{
+            state.periods=state.periods.filter(p=>p.id!==sp.id);
+            save('periods',state.periods);sel=null;rebuild();
+          });sc.appendChild(rb);
         }
-        const rb=btn('btn-danger',icon('trash',14,'#e11d48',2)+' Remove entire period entry',()=>{
-          state.periods=state.periods.filter(p=>p.id!==sp.id);
-          save('periods',state.periods);sel=null;rebuild();
-        });sc.appendChild(rb);
       } else {
         const ab=btn('btn-primary','Mark as period start',()=>{
           const end=addDays(sel,state.settings.periodLength-1);
