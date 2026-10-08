@@ -3,6 +3,7 @@ import { AIStatement } from "./components/AIStatement";
 import { Home } from "./pages/Home";
 import { Projects } from "./pages/Projects";
 import { About } from "./pages/About";
+import { Reveal } from "./components/Reveal";
 import "./App.css";
 
 function App() {
@@ -10,10 +11,18 @@ function App() {
     <>
       <Navbar />
       <main>
-        <Home />
-        <About />
-        <Projects />
-        <AIStatement />
+        <Reveal>
+          <Home />
+        </Reveal>
+        <Reveal delay={200}>
+          <About />
+        </Reveal>
+        <Reveal delay={400}>
+          <Projects />
+        </Reveal>
+        <Reveal delay={600}>
+          <AIStatement />
+        </Reveal>
       </main>
     </>
   );
