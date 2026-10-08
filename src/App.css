@@ -395,3 +395,14 @@ section ul {
 .facts dd {
   margin: 0.25rem 0 0;
 }
+
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  transform-origin: left;
+  z-index: 20;
+}

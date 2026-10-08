@@ -2,7 +2,7 @@ import { SocialButtons } from "../components/SocialButtons";
 
 const facts = [
   { label: "Current Study", value: "Games Development, University of Lincoln (2nd year)" },
-  { label: "Previous Qualification", value: "Distinction* in Games Technology at College; Grade 5 in Maths & English and a Grade 8 in Photography at a GCSE level." },
+  { label: "Previous Qualification", value: "Distinction* in Games Technology at College; Grade 5 in Maths & English, and a Grade 8 in Photography at a GCSE level." },
   { label: "Awards", value: "1st place @ Local Game of the Year; 2nd place @ National Game Awards" },
 ];
 
