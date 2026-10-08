@@ -4,7 +4,7 @@ const links = [
   { id: "home", label: "Home" },
   { id: "about", label: "About" },
   { id: "projects", label: "Projects" },
-  { id: "ai", label: "AI" },
+  { id: "ai-statement", label: "AI" },
 ];
 
 export function Navbar() {
