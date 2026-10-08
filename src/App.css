@@ -111,3 +111,20 @@ main {
   color: var(--text);
   border-bottom-color: var(--accent);
 }
+
+section h2 {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+}
+
+section p {
+  margin-bottom: 2rem;
+}
+
+section ul {
+  padding-left: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
