@@ -28,7 +28,6 @@ h1, h3 {
 
 h2 {
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.2em;
   color: var(--accent);
