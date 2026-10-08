@@ -1,7 +1,7 @@
 export function AIStatement() {
   return (
     <section id="ai">
-      <h2>How I Used AI</h2>
+      <h1>How I Used AI</h1>
       <p>
         I built this site with React, TypeScript and Vite, using Claude (Anthropic's AI assistant) as a tutor and pair-programmer. I had not covered React on my course yet, so I used AI to learn as I built: I asked it to explain each file and concept, then changed the code myself to check I understood it.
       </p>

@@ -1,10 +1,16 @@
 export function Home() {
-    return (
-        <section id="home">
-            <h1>Hey! I'm Liam.</h1>
-            <p>
-                I'm a passionate developer with a love for creating innovative web applications. Feel free to explore my projects and learn more about me.
-            </p>
-        </section>
-    );
+  return (
+    <section id="home" className="hero">
+      <p className="eyebrow">Games developer · Seeking internship</p>
+      <h1>Hey! I'm Liam</h1>
+      <p className="lead">
+        I'm a passionate gamer and developer creating games in Unity and Unreal Engine, with
+        a focus on innovative gameplay and clean, maintainable code.
+      </p>
+      <div className="hero-actions">
+        <a href="#projects" className="btn">View projects</a>
+        <a href="#about" className="btn">About me</a>
+      </div>
+    </section>
+  );
 }
