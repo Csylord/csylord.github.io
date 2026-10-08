@@ -19,9 +19,6 @@ function App() {
           <Route path="*" element={<p>Page not found.</p>} />
         </Routes>
       </main>
-      <footer>
-        <p>Contact: liam_walke@outlook.com</p>
-      </footer>
     </>
   );
 }

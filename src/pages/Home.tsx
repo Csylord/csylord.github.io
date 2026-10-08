@@ -1,9 +1,9 @@
 export function Home() {
     return (
         <section>
-            <h1>Welcome to My Portfolio</h1>
+            <h1>Hey! I'm Liam.</h1>
             <p>
-                Explore my projects and learn more about my work as a developer and designer.
+                I'm a passionate developer with a love for creating innovative web applications. Feel free to explore my projects and learn more about me.
             </p>
         </section>
     );
