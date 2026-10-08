@@ -12,6 +12,7 @@ function App() {
       <a href="#main" className="skip-link">Skip to content</a>
       <ScrollProgress />
       <Navbar />
+      <Starfield />
       <main id="main" tabIndex={-1}>
         <Reveal>
           <Home />
