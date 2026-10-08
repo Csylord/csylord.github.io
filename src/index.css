@@ -1,5 +1,24 @@
+:root {
+  --bg: #0f1220;
+  --surface: #181c30;
+  --text: #ffffff;
+  --muted: #9aa0c0;
+  --accent: #7c5cff;
+  --radius : 12px;
+}
+
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
-  line-height: 1.5;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Roboto", system-ui, sans-serif;
+  line-height: 1.6;
+}
+
+h1, h2, h3 {
+  font-family: "JetBrains Mono", monospace;
+}
+
+a {
+  color: var(--accent);
 }

@@ -11,9 +11,16 @@ main {
 }
 
 .card {
-  border: 1px solid #8884;
-  border-radius: 8px;
-  padding: 1rem;
+  border: var(--surface);
+  border: 1px solid #ffffff14;
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  border-color: var(--accent);
 }
 
 .role {
@@ -22,6 +29,5 @@ main {
 }
 
 .tools {
-  font-size: 0.9rem;
-  opacity: 0.8;
+  color: var(--muted);
 }
