@@ -5,6 +5,7 @@ import { About } from "./pages/About";
 import { Reveal } from "./components/Reveal";
 import "./App.css";
 import { ScrollProgress } from "./components/ScrollProgress";
+import { Starfield } from "./components/Starfield";
 
 function App() {
   return (
