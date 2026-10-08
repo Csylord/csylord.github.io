@@ -3,7 +3,7 @@ export function About() {
         <section>
             <h1>About Me</h1>
             <p>
-                I am a passionate developer with experience in building web applications using modern technologies. I enjoy creating user-friendly interfaces and writing clean, maintainable code.
+                I am a passionate developer with experience in creating games using Unity and Unreal Engine. I enjoy creating innovative gameplay mechanics and writing clean, maintainable code.
             </p>
             <h1>Social Links</h1>
             <ul>
