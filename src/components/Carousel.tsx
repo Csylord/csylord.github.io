@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
+import type { ProjectImage } from "../types";
 
 interface CarouselProps {
-  images: string[];
+  images: ProjectImage[];
   alt: string;
 }
 
@@ -23,11 +24,12 @@ export function Carousel({ images, alt }: CarouselProps) {
         className="carousel-track"
         style={{ transform: `translateX(-${index * 100}%)` }}
       >
-        {images.map((src, i) => (
+        {images.map((image, i) => (
           <img
             key={i}
-            src={src}
-            alt={`${alt}, image ${i + 1} of ${images.length}`}
+            src={image.src}
+            alt={image.alt}
+            aria-hidden={i !== index}
           />
         ))}
       </div>

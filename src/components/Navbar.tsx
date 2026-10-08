@@ -30,7 +30,7 @@ export function Navbar() {
   return (
     <nav className="navbar">
       <a href="#home" className="brand">
-        Your Name
+        Liam <span className="highlight">Csylord</span>
       </a>
       <div className="nav-links">
         {links.map(({ id, label }) => (

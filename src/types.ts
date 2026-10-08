@@ -4,5 +4,10 @@ export interface Project {
     tools: string[];
     description: string;
     link: string;
-    images: string[];
+    images: ProjectImage[];
+}
+
+export interface ProjectImage {
+  src: string;
+  alt: string;
 }

@@ -76,7 +76,7 @@ main {
   padding: 1rem 1.5rem;
   background: #000000cc;
   backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--line-strong);
 }
 
 .brand {
@@ -160,7 +160,7 @@ section ul {
   text-decoration: none;
   color: var(--text);
   background: transparent;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
@@ -242,7 +242,7 @@ section ul {
 
 .panel {
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   padding: 1.5rem;
 }
@@ -276,7 +276,7 @@ section ul {
   aspect-ratio: 16 / 9;
   margin-bottom: 1rem;
   background: var(--bg);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius);
 }
 
@@ -303,7 +303,7 @@ section ul {
   place-items: center;
   color: var(--text);
   background: #000000b3;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   cursor: pointer;
   transition: background 0.2s, color 0.2s;
