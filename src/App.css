@@ -354,3 +354,44 @@ section ul {
 @media (prefers-reduced-motion: reduce) {
   .carousel-track { transition: none; }
 }
+
+.about-text p {
+  max-width: 65ch;
+  margin: 0 0 1.25rem;
+}
+
+.about-text .lead {
+  font-size: 1.25rem;
+  color: var(--text);
+}
+
+.about-side {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+@media (min-width: 701px) {
+  .about-side {
+    position: sticky;
+    top: 6rem;
+  }
+}
+
+.facts {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+}
+
+.facts dt {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+}
+
+.facts dd {
+  margin: 0.25rem 0 0;
+}
