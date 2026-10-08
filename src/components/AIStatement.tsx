@@ -1,7 +1,7 @@
 export function AIStatement() {
     return (
         <section>
-            <h2>AI Statement</h2>
+            <h1>AI Statement</h1>
             <p>
                 I am committed to using AI responsibly and ethically in my work. I believe that AI should be used to enhance human creativity and productivity, not replace it. I will always strive to ensure that my use of AI is transparent, fair, and respectful of privacy and security.
             </p>
