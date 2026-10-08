@@ -1,5 +1,6 @@
 import { projects } from './data/projects';
 import { ProjectCard} from './components/ProjectCard';
+import { AIStatement } from './components/AIStatement';
 
 function App() {
     return (
@@ -16,6 +17,10 @@ function App() {
               <ProjectCard key={index} project={project} />
             ))}
           </div>
+        </section>
+
+        <section>
+          <AIStatement />
         </section>
 
         <footer>
