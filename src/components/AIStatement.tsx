@@ -1,4 +1,4 @@
-export function AiStatement() {
+export function AIStatement() {
   return (
     <section id="ai">
       <h2>How I Used AI</h2>
