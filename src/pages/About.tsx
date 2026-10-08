@@ -1,6 +1,6 @@
 export function About() {
     return (
-        <section>
+        <section id="about">
             <h1>About Me</h1>
             <p>
                 I am a passionate developer with experience in creating games using Unity and Unreal Engine. I enjoy creating innovative gameplay mechanics and writing clean, maintainable code.

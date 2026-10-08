@@ -1,4 +1,3 @@
-import { Routes, Route } from "react-router-dom";
 import { Navbar } from "./components/Navbar";
 import { AIStatement } from "./components/AIStatement";
 import { Home } from "./pages/Home";
@@ -11,13 +10,10 @@ function App() {
     <>
       <Navbar />
       <main>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/projects" element={<Projects />} />
-          <Route path="/ai" element={<AIStatement />} />
-          <Route path="*" element={<p>Page not found.</p>} />
-        </Routes>
+        <Home />
+        <About />
+        <Projects />
+        <AIStatement />
       </main>
     </>
   );

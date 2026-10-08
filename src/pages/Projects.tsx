@@ -3,7 +3,7 @@ import { ProjectCard } from '../components/ProjectCard';
 
 export function Projects() {
     return (
-        <section>
+        <section id ="projects">
             <h1>Projects</h1>
             <div className="grid">
                 {projects.map((project) => (

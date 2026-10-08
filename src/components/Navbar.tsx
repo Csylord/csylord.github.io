@@ -1,17 +1,49 @@
-import { Link, NavLink } from 'react-router-dom';
+import { useEffect, useState } from "react";
+
+const links = [
+  { id: "home", label: "Home" },
+  { id: "about", label: "About" },
+  { id: "projects", label: "Projects" },
+  { id: "ai", label: "AI" },
+];
 
 export function Navbar() {
-    return (
-        <nav className="navbar">
-            <Link to="/" className="brand">
-                Liam Walke
-            </Link>
-            <div className="nav-links">
-                <NavLink to="/" end>Home</NavLink>
-                <NavLink to="/projects">Projects</NavLink>
-                <NavLink to="/about">About</NavLink>
-                <NavLink to="/ai">AI Statement</NavLink>
-            </div>
-        </nav>
+  const [active, setActive] = useState("home");
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) setActive(entry.target.id);
+        });
+      },
+      { rootMargin: "-40% 0px -55% 0px" }
     );
+
+    links.forEach(({ id }) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <nav className="navbar">
+      <a href="#home" className="brand">
+        Your Name
+      </a>
+      <div className="nav-links">
+        {links.map(({ id, label }) => (
+          <a
+            key={id}
+            href={`#${id}`}
+            className={active === id ? "active" : ""}
+          >
+            {label}
+          </a>
+        ))}
+      </div>
+    </nav>
+  );
 }
