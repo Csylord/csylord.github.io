@@ -5,7 +5,7 @@ export function About() {
             <p>
                 I am a passionate developer with experience in creating games using Unity and Unreal Engine. I enjoy creating innovative gameplay mechanics and writing clean, maintainable code.
             </p>
-            <h1>Social Links</h1>
+            <h2>Social Links</h2>
             <ul>
                 <li><a href="https://github.com/csylord" target="_blank" rel="noopener noreferrer">GitHub</a></li>
                 <li><a href="https://linkedin.com/in/liam-walke-7153b1338" target="_blank" rel="noopener noreferrer">LinkedIn</a></li>
