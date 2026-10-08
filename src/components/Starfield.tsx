@@ -17,10 +17,15 @@ export function Starfield() {
     if (!canvas || !ctx) return;
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const hasMouse = window.matchMedia("(hover: hover) and (pointer: fine)");
     let width = 0;
     let height = 0;
     let stars: Star[] = [];
     let raf = 0;
+
+    // NEW: where the mouse is (target) and where the stars currently are (eased)
+    const target = { x: 0, y: 0 };
+    const eased = { x: 0, y: 0 };
 
     const setup = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -45,11 +50,25 @@ export function Starfield() {
       const scroll = window.scrollY;
       const still = reduced.matches;
 
+      // NEW: glide towards the mouse position a little each frame
+      if (!still) {
+        eased.x += (target.x - eased.x) * 0.05;
+        eased.y += (target.y - eased.y) * 0.05;
+      }
+
       for (const s of stars) {
         const drift = still ? 0 : time * 0.004 * s.depth;
+
+        // NEW: nearer stars (higher depth) shift further, opposite the cursor
+        const offsetX = -eased.x * 40 * s.depth;
+        const offsetY = -eased.y * 40 * s.depth;
+
+        const x = (((s.x + offsetX) % width) + width) % width;
         const y =
-          (((s.y - drift - scroll * 0.05 * s.depth) % height) + height) %
+          (((s.y - drift - scroll * 0.05 * s.depth + offsetY) % height) +
+            height) %
           height;
+
         const twinkle = still
           ? 0.5
           : 0.35 + 0.25 * Math.sin(time * 0.001 + s.phase);
@@ -57,7 +76,7 @@ export function Starfield() {
         ctx.globalAlpha = twinkle * s.depth;
         ctx.fillStyle = "#ffffff";
         ctx.beginPath();
-        ctx.arc(s.x, y, s.r, 0, Math.PI * 2);
+        ctx.arc(x, y, s.r, 0, Math.PI * 2);
         ctx.fill();
       }
     };
@@ -88,17 +107,36 @@ export function Starfield() {
       else start();
     };
 
+    // NEW: record the cursor position as a value from -0.5 to 0.5
+    const onMouseMove = (e: MouseEvent) => {
+      target.x = e.clientX / width - 0.5;
+      target.y = e.clientY / height - 0.5;
+    };
+
+    // NEW: drift back to centre when the cursor leaves the window
+    const onMouseLeave = () => {
+      target.x = 0;
+      target.y = 0;
+    };
+
     setup();
     start();
     window.addEventListener("resize", onResize);
     document.addEventListener("visibilitychange", onVisibility);
     reduced.addEventListener("change", start);
 
+    if (hasMouse.matches) {
+      window.addEventListener("mousemove", onMouseMove, { passive: true });
+      document.documentElement.addEventListener("mouseleave", onMouseLeave);
+    }
+
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
       document.removeEventListener("visibilitychange", onVisibility);
       reduced.removeEventListener("change", start);
+      window.removeEventListener("mousemove", onMouseMove);
+      document.documentElement.removeEventListener("mouseleave", onMouseLeave);
     };
   }, []);
 
