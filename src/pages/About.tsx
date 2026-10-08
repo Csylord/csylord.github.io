@@ -1,7 +1,7 @@
 import { SocialButtons } from "../components/SocialButtons";
 
 const facts = [
-  { label: "Current Study", value: "Games Development, University of Lincoln (2nd year)" },
+  { label: "Current Study", value: "Games Development, University (2nd year)" },
   { label: "Previous Qualification", value: "Distinction* in Games Technology at College; Grade 5 in Maths & English, and a Grade 8 in Photography at a GCSE level." },
   { label: "Awards", value: "1st place @ Local Game of the Year; 2nd place @ National Game Awards" },
 ];
@@ -28,8 +28,8 @@ export function About() {
             Awards.
           </p>
           <p>
-            I am now in my second year of a Games Development degree at the
-            University of Lincoln. Alongside my studies I have gained plenty
+            I am now in my second year of a Games Development degree at
+            University. Alongside my studies I have gained plenty
             of work experience, from the local chippy to a hotel serving RAF
             and USAF members and a luxury lodge resort that hosted celebrities
             such as the Women's England Football Team. I have also spent a
