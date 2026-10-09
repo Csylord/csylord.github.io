@@ -21,6 +21,8 @@ body {
   color: var(--text);
   font-family: "Inter", system-ui, sans-serif;
   line-height: 1.6;
+  overflow-y: hidden; /* Hide vertical scrollbar */
+  overflow-x: hidden; /* Hide horizontal scrollbar */
 }
 
 h1, h3 {
